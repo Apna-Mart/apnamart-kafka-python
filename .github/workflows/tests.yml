@@ -1,0 +1,71 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+
+    services:
+      kafka:
+        image: apache/kafka:latest
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_HOST://localhost:9092,PLAINTEXT://kafka:19092
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+          KAFKA_LISTENERS: CONTROLLER://kafka:29093,PLAINTEXT://kafka:19092,PLAINTEXT_HOST://0.0.0.0:9092
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        uv sync --extra dev
+
+    - name: Lint with ruff
+      run: |
+        uv run ruff check apnamart_kafka/ examples/ tests/
+        uv run ruff format --check apnamart_kafka/ examples/ tests/
+
+    - name: Type check with mypy
+      run: |
+        uv run mypy apnamart_kafka/
+
+    - name: Wait for Kafka to be ready
+      run: |
+        timeout 60 bash -c 'until nc -z localhost 9092; do sleep 1; done'
+
+    - name: Test with pytest
+      run: |
+        uv run pytest --cov=apnamart_kafka --cov-report=xml --cov-report=term-missing
+      env:
+        KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+
+    - name: Build package
+      run: |
+        uv build
