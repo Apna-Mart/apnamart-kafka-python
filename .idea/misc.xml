@@ -4,5 +4,5 @@
     <option name="sdkName" value="uv (generic_kafka_producer)" />
   </component>
   <component name="KubernetesApiProvider"><![CDATA[{}]]></component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="uv (generic_kafka_producer)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.9 (apnamart-kafka-python)" project-jdk-type="Python SDK" />
 </project>

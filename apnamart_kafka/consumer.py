@@ -446,6 +446,140 @@ class KafkaConsumer(BaseKafkaClient):
             logger.error(f"Failed to get partition metadata: {e}")
             raise ConnectionError(f"Failed to get metadata: {e}") from e
 
+    def consume_batches(
+        self, batch_size: int = 100, timeout_ms: int = 5000
+    ) -> Iterator[List[ConsumerMessage]]:
+        """Yield message batches for efficient batch processing.
+
+        Args:
+            batch_size: Maximum number of messages per batch
+            timeout_ms: Timeout for each poll operation
+
+        Yields:
+            Lists of ConsumerMessage objects
+
+        Raises:
+            ConnectionError: If consumption fails
+        """
+        if self._is_closed:
+            raise KafkaProducerError("Consumer is closed")
+
+        try:
+            while not self._is_closed:
+                messages = self.poll(timeout_ms=timeout_ms, max_records=batch_size)
+                if messages:
+                    yield messages
+
+        except Exception as e:
+            logger.error(f"Error during batch consumption: {e}")
+            raise ConnectionError(f"Batch consumption failed: {e}") from e
+
+    async def consume_parallel(
+        self,
+        handler: Any,
+        max_workers: int = 10,
+        batch_size: int = 100,
+        timeout_ms: int = 1000,
+        commit_interval: int = 10,
+    ) -> None:
+        """Consume messages with built-in parallel processing.
+
+        Args:
+            handler: Async function to process each message
+            max_workers: Maximum concurrent message handlers
+            batch_size: Messages to fetch per poll
+            timeout_ms: Poll timeout
+            commit_interval: Commit offsets after this many batches
+
+        Raises:
+            ConnectionError: If consumption fails
+        """
+        if self._is_closed:
+            raise KafkaProducerError("Consumer is closed")
+
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="kafka-parallel") as executor:
+            loop = asyncio.get_event_loop()
+            batches_processed = 0
+
+            try:
+                while not self._is_closed:
+                    # Poll for messages
+                    messages = await loop.run_in_executor(
+                        executor, self.poll, timeout_ms, batch_size
+                    )
+
+                    if messages:
+                        # Process messages in parallel
+                        tasks = []
+                        for msg in messages:
+                            if asyncio.iscoroutinefunction(handler):
+                                task = handler(msg)
+                            else:
+                                task = loop.run_in_executor(executor, handler, msg)
+                            tasks.append(task)
+
+                        # Wait for all messages to be processed
+                        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                        # Log any exceptions
+                        for i, result in enumerate(results):
+                            if isinstance(result, Exception):
+                                logger.error(
+                                    f"Error processing message {messages[i]}: {result}"
+                                )
+
+                        batches_processed += 1
+
+                        # Commit offsets periodically
+                        if batches_processed % commit_interval == 0:
+                            await self.commit_offsets_async()
+                            logger.debug(f"Committed offsets after {batches_processed} batches")
+
+            except Exception as e:
+                logger.error(f"Error in parallel consumption: {e}")
+                raise ConnectionError(f"Parallel consumption failed: {e}") from e
+
+    def process_with_thread_pool(
+        self,
+        handler: Any,
+        max_workers: int = 10,
+        batch_size: int = 100,
+        timeout_ms: int = 1000,
+    ) -> None:
+        """Process messages using a thread pool (synchronous).
+
+        Args:
+            handler: Function to process each message
+            max_workers: Maximum concurrent threads
+            batch_size: Messages to fetch per poll
+            timeout_ms: Poll timeout
+
+        Raises:
+            ConnectionError: If processing fails
+        """
+        if self._is_closed:
+            raise KafkaProducerError("Consumer is closed")
+
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="kafka-sync-parallel") as executor:
+            try:
+                while not self._is_closed:
+                    messages = self.poll(timeout_ms=timeout_ms, max_records=batch_size)
+
+                    if messages:
+                        # Submit all messages to thread pool
+                        futures = [executor.submit(handler, msg) for msg in messages]
+
+                        # Wait for completion and handle exceptions
+                        for future in futures:
+                            try:
+                                future.result()
+                            except Exception as e:
+                                logger.error(f"Error processing message: {e}")
+
+            except Exception as e:
+                logger.error(f"Error in thread pool processing: {e}")
+                raise ConnectionError(f"Thread pool processing failed: {e}") from e
+
     def close(self) -> None:
         """Close the consumer and clean up resources."""
         if self._is_closed:

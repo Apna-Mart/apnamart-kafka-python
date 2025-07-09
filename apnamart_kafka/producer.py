@@ -2,8 +2,8 @@
 
 import asyncio
 import logging
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional, Union
+from concurrent.futures import ThreadPoolExecutor, Future
+from typing import Any, Dict, List, Optional, Union
 
 from kafka import KafkaProducer as KafkaClient  # type: ignore
 from kafka.errors import KafkaError  # type: ignore
@@ -181,6 +181,114 @@ class KafkaProducer(BaseKafkaClient):
             headers,
             serializer,
         )
+
+    def send_batch(
+        self,
+        messages: List[Dict[str, Any]],
+        serializer: Union[str, Serializer] = "json",
+    ) -> List[Future]:
+        """Send multiple messages efficiently (synchronous).
+
+        Args:
+            messages: List of message dictionaries with keys:
+                - topic: Topic name (required)
+                - value: Message value (required)
+                - key: Message key (optional)
+                - partition: Partition to send to (optional)
+                - timestamp_ms: Message timestamp (optional)
+                - headers: Message headers (optional)
+            serializer: Default serializer for all messages
+
+        Returns:
+            List of futures for each message
+
+        Raises:
+            PublishError: If message publishing fails
+        """
+        if self._is_closed:
+            raise KafkaProducerError("Producer is closed")
+
+        futures = []
+        producer = self._get_producer()
+
+        for msg in messages:
+            try:
+                topic = msg.get("topic")
+                if not topic:
+                    raise ValueError("Topic is required for each message")
+
+                value = msg.get("value")
+                if value is None:
+                    raise ValueError("Value is required for each message")
+
+                full_topic = self._config.get_topic_name(topic)
+                msg_serializer = msg.get("serializer", serializer)
+
+                # Serialize key and value
+                serialized_key = serialize_key(msg.get("key"))
+                serialized_value = serialize_value(value, msg_serializer)
+
+                # Send the message without waiting
+                future = producer.send(
+                    topic=full_topic,
+                    value=serialized_value,
+                    key=serialized_key,
+                    partition=msg.get("partition"),
+                    timestamp_ms=msg.get("timestamp_ms"),
+                    headers=msg.get("headers"),
+                )
+                futures.append(future)
+
+            except Exception as e:
+                logger.error(f"Failed to send batch message: {e}")
+                # Continue with other messages
+                futures.append(None)
+
+        return futures
+
+    async def send_batch_async(
+        self,
+        messages: List[Dict[str, Any]],
+        serializer: Union[str, Serializer] = "json",
+    ) -> List[Any]:
+        """Send multiple messages efficiently (asynchronous).
+
+        Args:
+            messages: List of message dictionaries (see send_batch for format)
+            serializer: Default serializer for all messages
+
+        Returns:
+            List of results for each message
+
+        Raises:
+            PublishError: If message publishing fails
+        """
+        if self._is_closed:
+            raise KafkaProducerError("Producer is closed")
+
+        # Create tasks for all messages
+        tasks = []
+        for msg in messages:
+            topic = msg.get("topic")
+            value = msg.get("value")
+            
+            if not topic or value is None:
+                logger.error(f"Invalid message in batch: {msg}")
+                continue
+
+            task = self.send_async(
+                topic=topic,
+                value=value,
+                key=msg.get("key"),
+                partition=msg.get("partition"),
+                timestamp_ms=msg.get("timestamp_ms"),
+                headers=msg.get("headers"),
+                serializer=msg.get("serializer", serializer),
+            )
+            tasks.append(task)
+
+        # Wait for all messages to be sent
+        return await asyncio.gather(*tasks, return_exceptions=True)
 
     def flush(self, timeout: Optional[float] = None) -> None:
         """Flush any pending messages.

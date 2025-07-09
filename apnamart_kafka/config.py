@@ -40,6 +40,25 @@ class KafkaConfig(BaseKafkaConfig):
         ge=1024,
     )
 
+    # Batching parameters for performance tuning
+    batch_size: int = Field(
+        default=16384,  # 16KB
+        description="Maximum batch size in bytes",
+        ge=0,
+    )
+
+    linger_ms: int = Field(
+        default=0,
+        description="Time to wait for additional messages before sending a batch",
+        ge=0,
+    )
+
+    buffer_memory: int = Field(
+        default=33554432,  # 32MB
+        description="Total memory available to the producer for buffering",
+        ge=1024,
+    )
+
     @field_validator("acks")
     @classmethod
     def validate_acks(cls, v: str) -> str:
@@ -83,6 +102,9 @@ class KafkaConfig(BaseKafkaConfig):
             "request_timeout_ms": self.request_timeout_ms,
             "max_block_ms": self.max_block_ms,
             "max_request_size": self.max_request_size,
+            "batch_size": self.batch_size,
+            "linger_ms": self.linger_ms,
+            "buffer_memory": self.buffer_memory,
         }
 
         if self.compression_type:
