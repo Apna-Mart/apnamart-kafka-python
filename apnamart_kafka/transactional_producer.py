@@ -3,8 +3,7 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-from kafka import KafkaProducer as KafkaClient  # type: ignore
-from kafka.errors import KafkaError  # type: ignore
+from confluent_kafka import Producer as KafkaClient, KafkaError, KafkaException  # type: ignore
 
 from .config import KafkaConfig
 from .exceptions import (
@@ -48,17 +47,17 @@ class TransactionalProducer(KafkaProducer):
         try:
             kafka_config = self._kafka_config.to_kafka_config()
             
-            # Add transactional configuration
+            # Add transactional configuration for confluent-kafka
             kafka_config.update({
-                "transactional_id": self._transactional_id,
-                "enable_idempotence": True,  # Required for transactions
-                "acks": "all",  # Required for transactions
+                "transactional.id": self._transactional_id,
+                "enable.idempotence": True,  # Required for transactions
+                "acks": -1,  # Required for transactions (-1 = 'all' in confluent-kafka)
                 "retries": 10,  # Higher retries for reliability
-                "max_in_flight_requests_per_connection": 5,  # Kafka default for idempotent producer
+                "max.in.flight.requests.per.connection": 5,  # Kafka default for idempotent producer
             })
 
             logger.debug(f"Creating transactional Kafka producer with id: {self._transactional_id}")
-            client = KafkaClient(**kafka_config)
+            client = KafkaClient(kafka_config)
             
             # Initialize transactions
             client.init_transactions()
@@ -66,6 +65,9 @@ class TransactionalProducer(KafkaProducer):
             
             self._notify_connection_established()
             return client
+        except (KafkaError, KafkaException) as e:
+            self._notify_connection_lost(e)
+            raise ConnectionError(f"Failed to create transactional Kafka producer: {e}") from e
         except Exception as e:
             self._notify_connection_lost(e)
             raise ConnectionError(f"Failed to create transactional Kafka producer: {e}") from e
@@ -87,6 +89,9 @@ class TransactionalProducer(KafkaProducer):
             producer.begin_transaction()
             self._in_transaction = True
             logger.debug("Transaction started")
+        except (KafkaError, KafkaException) as e:
+            logger.error(f"Failed to begin transaction: {e}")
+            raise KafkaProducerError(f"Failed to begin transaction: {e}") from e
         except Exception as e:
             logger.error(f"Failed to begin transaction: {e}")
             raise KafkaProducerError(f"Failed to begin transaction: {e}") from e
@@ -108,6 +113,10 @@ class TransactionalProducer(KafkaProducer):
             producer.commit_transaction()
             self._in_transaction = False
             logger.debug("Transaction committed")
+        except (KafkaError, KafkaException) as e:
+            self._in_transaction = False
+            logger.error(f"Failed to commit transaction: {e}")
+            raise KafkaProducerError(f"Failed to commit transaction: {e}") from e
         except Exception as e:
             self._in_transaction = False
             logger.error(f"Failed to commit transaction: {e}")
@@ -130,6 +139,10 @@ class TransactionalProducer(KafkaProducer):
             producer.abort_transaction()
             self._in_transaction = False
             logger.debug("Transaction aborted")
+        except (KafkaError, KafkaException) as e:
+            self._in_transaction = False
+            logger.error(f"Failed to abort transaction: {e}")
+            raise KafkaProducerError(f"Failed to abort transaction: {e}") from e
         except Exception as e:
             self._in_transaction = False
             logger.error(f"Failed to abort transaction: {e}")

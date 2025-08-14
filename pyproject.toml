@@ -1,11 +1,11 @@
 [project]
 name = "apnamart-kafka-python"
-version = "0.1.1"
-description = "A scalable, enterprise-ready Kafka producer and consumer library for Python services"
+version = "0.2.0"
+description = "High-performance Kafka client for Python built on confluent-kafka with enterprise features and full backward compatibility"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "kafka-python>=2.0.2",
+    "confluent-kafka>=2.4.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
 ]

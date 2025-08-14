@@ -160,7 +160,38 @@ class KafkaConsumerConfig(BaseKafkaConfig):
         return v
 
     def to_kafka_config(self) -> Dict[str, Any]:
-        """Convert to kafka-python consumer configuration dictionary."""
+        """Convert to confluent-kafka-python consumer configuration dictionary with dot notation."""
+        config = {
+            "bootstrap.servers": self.bootstrap_servers,  # Keep as string, not split
+            "group.id": self.group_id,
+            "auto.offset.reset": self.auto_offset_reset,
+            "enable.auto.commit": self.enable_auto_commit,
+            "auto.commit.interval.ms": self.auto_commit_interval_ms,
+            "max.poll.interval.ms": self.max_poll_interval_ms,
+            "session.timeout.ms": self.session_timeout_ms,
+            "heartbeat.interval.ms": self.heartbeat_interval_ms,
+            "fetch.min.bytes": self.fetch_min_bytes,
+            "fetch.message.max.bytes": self.fetch_max_bytes,
+            "fetch.wait.max.ms": self.fetch_max_wait_ms,
+            "max.partition.fetch.bytes": self.max_partition_fetch_bytes,
+            "check.crcs": self.check_crcs,
+            # "exclude.internal.topics": self.exclude_internal_topics,  # Not supported in confluent-kafka
+            "isolation.level": self.isolation_level,
+        }
+
+        # Add group instance ID if specified
+        if self.group_instance_id:
+            config["group.instance.id"] = self.group_instance_id
+
+        # Add security configuration
+        security_config = self.get_security_config()
+        if security_config.get("security.protocol") != "PLAINTEXT":
+            config.update(security_config)
+
+        return config
+
+    def to_legacy_kafka_config(self) -> Dict[str, Any]:
+        """Convert to legacy kafka-python consumer configuration dictionary."""
         config = {
             "bootstrap_servers": self.bootstrap_servers.split(","),
             "group_id": self.group_id,
@@ -185,7 +216,7 @@ class KafkaConsumerConfig(BaseKafkaConfig):
             config["group_instance_id"] = self.group_instance_id
 
         # Add security configuration
-        security_config = self.get_security_config()
+        security_config = self.get_legacy_security_config()
         if security_config.get("security_protocol") != "PLAINTEXT":
             config.update(security_config)
 

@@ -3,7 +3,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from kafka.errors import KafkaError
+from confluent_kafka import KafkaError
 
 from apnamart_kafka.config import KafkaConfig
 from apnamart_kafka.exceptions import ConnectionError, KafkaProducerError, PublishError

@@ -11,10 +11,18 @@ class KafkaConfig(BaseKafkaConfig):
     """Kafka producer configuration with environment variable support."""
 
     # Producer settings
-    acks: str = Field(default="1", description="Acknowledgment level (0, 1, or 'all')")
+    acks: str = Field(default="all", description="Acknowledgment level (0, 1, or 'all')")
 
     retries: int = Field(
-        default=3, description="Number of retries for failed sends", ge=0
+        default=2147483647, description="Number of retries for failed sends (max for idempotence)", ge=0
+    )
+
+    enable_idempotence: bool = Field(
+        default=True, description="Enable exactly-once semantics to prevent duplicates"
+    )
+
+    max_in_flight_requests_per_connection: int = Field(
+        default=5, description="Max unacknowledged requests per connection (<=5 for idempotence)", ge=1, le=5
     )
 
     retry_backoff_ms: int = Field(
@@ -84,7 +92,37 @@ class KafkaConfig(BaseKafkaConfig):
         return v.strip()
 
     def to_kafka_config(self) -> Dict[str, Any]:
-        """Convert to kafka-python configuration dictionary."""
+        """Convert to confluent-kafka-python configuration dictionary with dot notation."""
+        # Convert acks to proper type for confluent-kafka-python
+        acks_value: Union[int, str] = self.acks
+        if acks_value == "0":
+            acks_value = 0
+        elif acks_value == "1":
+            acks_value = 1
+        elif acks_value == "all":
+            acks_value = -1  # confluent-kafka uses -1 for 'all'
+
+        config = {
+            "bootstrap.servers": self.bootstrap_servers,  # Keep as string, not split
+            "acks": acks_value,
+            "retries": self.retries,
+            "retry.backoff.ms": self.retry_backoff_ms,
+            "request.timeout.ms": self.request_timeout_ms,
+            "message.max.bytes": self.max_request_size,
+            "batch.size": self.batch_size,
+            "linger.ms": self.linger_ms,
+            "queue.buffering.max.kbytes": self.buffer_memory // 1024,  # Convert bytes to KB
+            "enable.idempotence": self.enable_idempotence,
+            "max.in.flight.requests.per.connection": self.max_in_flight_requests_per_connection,
+        }
+
+        if self.compression_type:
+            config["compression.type"] = self.compression_type
+
+        return config
+
+    def to_legacy_kafka_config(self) -> Dict[str, Any]:
+        """Convert to legacy kafka-python configuration dictionary (for backward compatibility)."""
         # Convert acks to proper type for kafka-python
         acks_value: Union[int, str] = self.acks
         if acks_value == "0":
@@ -105,6 +143,8 @@ class KafkaConfig(BaseKafkaConfig):
             "batch_size": self.batch_size,
             "linger_ms": self.linger_ms,
             "buffer_memory": self.buffer_memory,
+            "enable_idempotence": self.enable_idempotence,
+            "max_in_flight_requests_per_connection": self.max_in_flight_requests_per_connection,
         }
 
         if self.compression_type:

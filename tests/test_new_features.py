@@ -171,7 +171,7 @@ class TestParallelHelpers:
         )
         
         # Mock poll to return proper format (dict of TopicPartition -> list)
-        from kafka.structs import TopicPartition
+        from confluent_kafka import TopicPartition
         tp = TopicPartition("test", 0)
         
         # First poll returns 2 messages, second returns empty
@@ -211,7 +211,7 @@ class TestParallelHelpers:
         )
         
         # Mock poll to return proper format (dict of TopicPartition -> list)
-        from kafka.structs import TopicPartition
+        from confluent_kafka import TopicPartition
         tp = TopicPartition("test", 0)
         
         # Return one message then empty

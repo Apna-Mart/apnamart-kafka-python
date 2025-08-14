@@ -103,7 +103,30 @@ class BaseKafkaConfig(BaseSettings):
         return topic
 
     def get_security_config(self) -> Dict[str, Any]:
-        """Get security-related configuration."""
+        """Get security-related configuration in confluent-kafka dot notation format."""
+        config: Dict[str, Any] = {"security.protocol": self.security_protocol}
+
+        if self.ssl_keystore_location:
+            config.update(
+                {
+                    "ssl.keystore.location": self.ssl_keystore_location,
+                    "ssl.keystore.password": self.ssl_keystore_password,
+                }
+            )
+
+        if self.sasl_mechanism:
+            config.update(
+                {
+                    "sasl.mechanism": self.sasl_mechanism,
+                    "sasl.username": self.sasl_username,
+                    "sasl.password": self.sasl_password,
+                }
+            )
+
+        return config
+
+    def get_legacy_security_config(self) -> Dict[str, Any]:
+        """Get security-related configuration in legacy kafka-python format."""
         config: Dict[str, Any] = {"security_protocol": self.security_protocol}
 
         if self.ssl_keystore_location:

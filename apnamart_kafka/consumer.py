@@ -2,12 +2,12 @@
 
 import asyncio
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, AsyncGenerator, Dict, Iterator, List, Optional, Set, Union
 
-from kafka import KafkaConsumer as KafkaConsumerClient  # type: ignore
-from kafka.errors import KafkaError  # type: ignore
-from kafka.structs import OffsetAndMetadata, TopicPartition  # type: ignore
+from confluent_kafka import Consumer as KafkaConsumerClient, KafkaError, KafkaException, TopicPartition  # type: ignore
+from confluent_kafka import OFFSET_BEGINNING, OFFSET_END, OFFSET_STORED, OFFSET_INVALID  # type: ignore
 
 from .base.client import BaseKafkaClient
 from .consumer_config import KafkaConsumerConfig
@@ -23,15 +23,23 @@ class ConsumerMessage:
     """Represents a consumed message with metadata."""
 
     def __init__(self, record: Any) -> None:
-        """Initialize from kafka-python ConsumerRecord."""
-        self.topic = record.topic
-        self.partition = record.partition
-        self.offset = record.offset
-        self.timestamp = record.timestamp
-        self.timestamp_type = record.timestamp_type
-        self.key = record.key
-        self.value = record.value
-        self.headers = dict(record.headers) if record.headers else {}
+        """Initialize from confluent-kafka Message object."""
+        self.topic = record.topic()
+        self.partition = record.partition()
+        self.offset = record.offset()
+        
+        # Handle timestamp - confluent-kafka returns tuple (timestamp_type, timestamp_ms)
+        timestamp_info = record.timestamp()
+        self.timestamp_type = timestamp_info[0]
+        self.timestamp = timestamp_info[1] if timestamp_info[0] != -1 else None
+        
+        self.key = record.key()
+        self.value = record.value()
+        
+        # Convert headers from list of tuples to dict
+        self.headers = {}
+        if record.headers():
+            self.headers = {k: v for k, v in record.headers()}
 
     def __repr__(self) -> str:
         return (
@@ -108,9 +116,10 @@ class KafkaConsumer(BaseKafkaClient):
             consumer = self._get_consumer()
 
             if pattern:
-                # Subscribe to pattern
-                logger.info(f"Subscribing to topic pattern: {pattern}")
-                consumer.subscribe(pattern=pattern)
+                # Subscribe to pattern - confluent-kafka doesn't support regex patterns in the same way
+                # For now, we'll log a warning and treat it as a topic list
+                logger.warning(f"Pattern subscription not directly supported, treating '{pattern}' as topic name")
+                consumer.subscribe([pattern])
                 self._subscribed_topics.add(f"pattern:{pattern}")
             else:
                 # Subscribe to specific topics
@@ -126,6 +135,9 @@ class KafkaConsumer(BaseKafkaClient):
                 consumer.subscribe(full_topics)
                 self._subscribed_topics.update(full_topics)
 
+        except (KafkaError, KafkaException) as e:
+            logger.error(f"Failed to subscribe to topics: {e}")
+            raise ConnectionError(f"Failed to subscribe: {e}") from e
         except Exception as e:
             logger.error(f"Failed to subscribe to topics: {e}")
             raise ConnectionError(f"Failed to subscribe: {e}") from e
@@ -181,36 +193,52 @@ class KafkaConsumer(BaseKafkaClient):
             consumer = self._get_consumer()
 
             # Use max_records from parameter or config
-            records_limit = max_records or self._kafka_config.max_poll_records
+            records_limit = max_records or getattr(self._kafka_config, 'max_poll_records', 500)
 
-            # Poll for messages
-            message_batch = consumer.poll(
-                timeout_ms=timeout_ms, max_records=records_limit
-            )
+            # Convert timeout from milliseconds to seconds for confluent-kafka
+            timeout_seconds = timeout_ms / 1000.0
 
-            # Convert to ConsumerMessage objects
+            # Poll for messages - confluent-kafka returns one message at a time
             messages = []
-            for topic_partition, records in message_batch.items():
-                for record in records:
-                    message = ConsumerMessage(record)
-                    messages.append(message)
+            start_time = time.time()
+            
+            while len(messages) < records_limit and (time.time() - start_time) < timeout_seconds:
+                # Poll for a single message
+                msg = consumer.poll(timeout=min(1.0, timeout_seconds - (time.time() - start_time)))
+                
+                if msg is None:
+                    # No message received within timeout
+                    break
+                    
+                if msg.error():
+                    # Handle errors
+                    if msg.error().code() == KafkaError._PARTITION_EOF:
+                        # End of partition, continue polling
+                        continue
+                    else:
+                        logger.error(f"Consumer error: {msg.error()}")
+                        raise ConnectionError(f"Consumer error: {msg.error()}")
+                
+                # Valid message received
+                message = ConsumerMessage(msg)
+                messages.append(message)
 
-                    # Notify monitoring handlers
-                    self._notify_message_received(
-                        message.topic,
-                        message.key,
-                        message.value,
-                        {
-                            "partition": message.partition,
-                            "offset": message.offset,
-                            "timestamp": message.timestamp,
-                        },
-                    )
+                # Notify monitoring handlers
+                self._notify_message_received(
+                    message.topic,
+                    message.key,
+                    message.value,
+                    {
+                        "partition": message.partition,
+                        "offset": message.offset,
+                        "timestamp": message.timestamp,
+                    },
+                )
 
             logger.debug(f"Polled {len(messages)} messages")
             return messages
 
-        except KafkaError as e:
+        except (KafkaError, KafkaException) as e:
             logger.error(f"Failed to poll messages: {e}")
             raise ConnectionError(f"Failed to poll messages: {e}") from e
 
@@ -277,7 +305,7 @@ class KafkaConsumer(BaseKafkaClient):
             raise ConnectionError(f"Async consumption failed: {e}") from e
 
     def commit_offsets(
-        self, offsets: Optional[Dict[TopicPartition, OffsetAndMetadata]] = None
+        self, offsets: Optional[Dict[TopicPartition, int]] = None
     ) -> None:
         """Commit message offsets.
 
@@ -295,17 +323,24 @@ class KafkaConsumer(BaseKafkaClient):
 
             if offsets:
                 logger.debug(f"Committing specific offsets: {offsets}")
-                consumer.commit(offsets)
+                # Convert offsets to confluent-kafka format
+                confluent_offsets = []
+                for tp, offset in offsets.items():
+                    confluent_offsets.append(TopicPartition(tp.topic, tp.partition, offset))
+                consumer.commit(offsets=confluent_offsets)
             else:
                 logger.debug("Committing current offsets")
                 consumer.commit()
 
+        except (KafkaError, KafkaException) as e:
+            logger.error(f"Failed to commit offsets: {e}")
+            raise ConnectionError(f"Failed to commit offsets: {e}") from e
         except Exception as e:
             logger.error(f"Failed to commit offsets: {e}")
             raise ConnectionError(f"Failed to commit offsets: {e}") from e
 
     async def commit_offsets_async(
-        self, offsets: Optional[Dict[TopicPartition, OffsetAndMetadata]] = None
+        self, offsets: Optional[Dict[TopicPartition, int]] = None
     ) -> None:
         """Commit message offsets asynchronously.
 

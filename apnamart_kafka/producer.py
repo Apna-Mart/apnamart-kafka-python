@@ -2,11 +2,11 @@
 
 import asyncio
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Any, Dict, List, Optional, Union
 
-from kafka import KafkaProducer as KafkaClient  # type: ignore
-from kafka.errors import KafkaError  # type: ignore
+from confluent_kafka import Producer as KafkaClient, KafkaError, KafkaException  # type: ignore
 
 from .base.client import BaseKafkaClient
 from .config import KafkaConfig
@@ -99,44 +99,81 @@ class KafkaProducer(BaseKafkaClient):
 
             logger.debug(f"Sending message to topic '{full_topic}' with key '{key}'")
 
-            # Send the message
-            future = producer.send(
-                topic=full_topic,
-                value=serialized_value,
-                key=serialized_key,
-                partition=partition,
-                timestamp_ms=timestamp_ms,
-                headers=headers,
-            )
+            # Prepare headers for confluent-kafka format
+            confluent_headers = None
+            if headers:
+                confluent_headers = [(k, v) for k, v in headers.items()]
 
-            # Wait for the message to be sent
-            record_metadata = future.get(
-                timeout=self._kafka_config.request_timeout_ms / 1000
-            )
-            logger.debug(
-                f"Message sent successfully to {record_metadata.topic}:"
-                f"{record_metadata.partition}:{record_metadata.offset}"
-            )
+            # Store delivery result for error handling
+            delivery_error = None
+            delivery_success = False
 
-            # Notify monitoring handlers
-            self._notify_message_sent(
-                full_topic,
-                key,
-                value,
-                {
-                    "partition": record_metadata.partition,
-                    "offset": record_metadata.offset,
-                    "timestamp": record_metadata.timestamp,
-                },
-            )
+            # Create delivery callback for error handling
+            def delivery_callback(err, msg):
+                nonlocal delivery_error, delivery_success
+                if err is not None:
+                    delivery_error = err
+                    logger.error(f"Failed to send message to topic '{topic}': {err}")
+                    self._notify_message_failed(full_topic, key, value, err)
+                else:
+                    delivery_success = True
+                    logger.debug(
+                        f"Message sent successfully to {msg.topic()}:"
+                        f"{msg.partition()}:{msg.offset()}"
+                    )
+                    # Notify monitoring handlers
+                    self._notify_message_sent(
+                        full_topic,
+                        key,
+                        value,
+                        {
+                            "partition": msg.partition(),
+                            "offset": msg.offset(),
+                            "timestamp": msg.timestamp()[1] if msg.timestamp()[0] != -1 else None,
+                        },
+                    )
 
-        except KafkaError as e:
+            # Send the message with confluent-kafka
+            produce_kwargs = {
+                "topic": full_topic,
+                "value": serialized_value,
+                "key": serialized_key,
+                "callback": delivery_callback,
+            }
+            
+            # Only add optional parameters if they are not None
+            if partition is not None:
+                produce_kwargs["partition"] = partition
+            if timestamp_ms is not None:
+                produce_kwargs["timestamp"] = timestamp_ms
+            if confluent_headers is not None:
+                produce_kwargs["headers"] = confluent_headers
+                
+            producer.produce(**produce_kwargs)
+
+            # Poll for delivery reports to trigger callbacks and wait for completion
+            timeout = self._kafka_config.request_timeout_ms / 1000
+            start_time = time.time()
+            while not delivery_success and not delivery_error and (time.time() - start_time) < timeout:
+                producer.poll(0.1)
+
+            # Check for delivery errors
+            if delivery_error:
+                raise PublishError(f"Failed to send message: {delivery_error}")
+            elif not delivery_success:
+                raise PublishError("Message delivery timed out")
+
+        except (KafkaError, KafkaException) as e:
             logger.error(f"Failed to send message to topic '{topic}': {e}")
-            self._notify_message_failed(full_topic, key, value, e)
+            # Only call _notify_message_failed if full_topic was defined
+            if 'full_topic' in locals():
+                self._notify_message_failed(full_topic, key, value, e)
             raise PublishError(f"Failed to send message: {e}") from e
         except Exception as e:
             logger.error(f"Unexpected error sending message to topic '{topic}': {e}")
-            self._notify_message_failed(full_topic, key, value, e)
+            # Only call _notify_message_failed if full_topic was defined
+            if 'full_topic' in locals():
+                self._notify_message_failed(full_topic, key, value, e)
             raise PublishError(f"Unexpected error: {e}") from e
 
     async def send_async(
@@ -186,7 +223,7 @@ class KafkaProducer(BaseKafkaClient):
         self,
         messages: List[Dict[str, Any]],
         serializer: Union[str, Serializer] = "json",
-    ) -> List[Future]:
+    ) -> List[Dict[str, Any]]:
         """Send multiple messages efficiently (synchronous).
 
         Args:
@@ -200,7 +237,7 @@ class KafkaProducer(BaseKafkaClient):
             serializer: Default serializer for all messages
 
         Returns:
-            List of futures for each message
+            List of results for each message (with success/error info)
 
         Raises:
             PublishError: If message publishing fails
@@ -208,18 +245,21 @@ class KafkaProducer(BaseKafkaClient):
         if self._is_closed:
             raise KafkaProducerError("Producer is closed")
 
-        futures = []
+        results = []
         producer = self._get_producer()
+        delivery_results = {}  # Map to track delivery results
 
-        for msg in messages:
+        for i, msg in enumerate(messages):
             try:
                 topic = msg.get("topic")
                 if not topic:
-                    raise ValueError("Topic is required for each message")
+                    results.append({"success": False, "error": "Topic is required for each message"})
+                    continue
 
                 value = msg.get("value")
                 if value is None:
-                    raise ValueError("Value is required for each message")
+                    results.append({"success": False, "error": "Value is required for each message"})
+                    continue
 
                 full_topic = self._config.get_topic_name(topic)
                 msg_serializer = msg.get("serializer", serializer)
@@ -228,23 +268,64 @@ class KafkaProducer(BaseKafkaClient):
                 serialized_key = serialize_key(msg.get("key"))
                 serialized_value = serialize_value(value, msg_serializer)
 
-                # Send the message without waiting
-                future = producer.send(
-                    topic=full_topic,
-                    value=serialized_value,
-                    key=serialized_key,
-                    partition=msg.get("partition"),
-                    timestamp_ms=msg.get("timestamp_ms"),
-                    headers=msg.get("headers"),
-                )
-                futures.append(future)
+                # Prepare headers for confluent-kafka format
+                confluent_headers = None
+                if msg.get("headers"):
+                    confluent_headers = [(k, v) for k, v in msg.get("headers").items()]
+
+                # Create delivery callback for this message
+                def delivery_callback(err, kafka_msg, msg_index=i):
+                    if err is not None:
+                        delivery_results[msg_index] = {"success": False, "error": str(err)}
+                    else:
+                        delivery_results[msg_index] = {
+                            "success": True, 
+                            "partition": kafka_msg.partition(),
+                            "offset": kafka_msg.offset(),
+                            "timestamp": kafka_msg.timestamp()[1] if kafka_msg.timestamp()[0] != -1 else None,
+                        }
+
+                # Send the message
+                produce_kwargs = {
+                    "topic": full_topic,
+                    "value": serialized_value,
+                    "key": serialized_key,
+                    "callback": delivery_callback,
+                }
+                
+                # Only add optional parameters if they are not None
+                if msg.get("partition") is not None:
+                    produce_kwargs["partition"] = msg.get("partition")
+                if msg.get("timestamp_ms") is not None:
+                    produce_kwargs["timestamp"] = msg.get("timestamp_ms")
+                if confluent_headers is not None:
+                    produce_kwargs["headers"] = confluent_headers
+                    
+                producer.produce(**produce_kwargs)
+                
+                # Initialize result slot
+                results.append({"pending": True})
 
             except Exception as e:
                 logger.error(f"Failed to send batch message: {e}")
-                # Continue with other messages
-                futures.append(None)
+                results.append({"success": False, "error": str(e)})
 
-        return futures
+        # Poll for all delivery reports
+        timeout = self._kafka_config.request_timeout_ms / 1000
+        start_time = time.time()
+        
+        while len(delivery_results) < len([r for r in results if r.get("pending")]) and (time.time() - start_time) < timeout:
+            producer.poll(0.1)
+
+        # Update results with delivery outcomes
+        for i, result in enumerate(results):
+            if result.get("pending"):
+                if i in delivery_results:
+                    results[i] = delivery_results[i]
+                else:
+                    results[i] = {"success": False, "error": "Delivery timed out"}
+
+        return results
 
     async def send_batch_async(
         self,
@@ -299,7 +380,12 @@ class KafkaProducer(BaseKafkaClient):
         if self._producer is not None:
             try:
                 logger.debug("Flushing producer")
-                self._producer.flush(timeout=timeout)
+                # confluent-kafka flush returns number of messages still in queue
+                # If timeout is None, use a reasonable default
+                flush_timeout = timeout if timeout is not None else 10.0
+                remaining = self._producer.flush(timeout=flush_timeout)
+                if remaining > 0:
+                    logger.warning(f"Flush timed out, {remaining} messages still in queue")
             except Exception as e:
                 logger.error(f"Error flushing producer: {e}")
                 raise KafkaProducerError(f"Failed to flush producer: {e}") from e
@@ -316,9 +402,9 @@ class KafkaProducer(BaseKafkaClient):
         if self._producer is not None:
             try:
                 self._producer.flush()
-                self._producer.close()
+                # confluent-kafka Producer doesn't have close(), just flush and clear reference
             except Exception as e:
-                logger.error(f"Error closing producer: {e}")
+                logger.error(f"Error flushing producer during close: {e}")
             finally:
                 self._producer = None
 

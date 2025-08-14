@@ -222,7 +222,7 @@ class TestKafkaConsumer:
         mock_client_class.return_value = mock_client
 
         # Mock poll return value
-        from kafka.structs import TopicPartition
+        from confluent_kafka import TopicPartition
 
         tp = TopicPartition("test-topic", 0)
         records = [
@@ -279,10 +279,10 @@ class TestKafkaConsumer:
         mock_client = Mock()
         mock_client_class.return_value = mock_client
 
-        from kafka.structs import OffsetAndMetadata, TopicPartition
+        from confluent_kafka import TopicPartition
 
         offsets = {
-            TopicPartition("test-topic", 0): OffsetAndMetadata(100, "metadata", None)
+            TopicPartition("test-topic", 0): 100  # confluent-kafka uses simple offset values
         }
 
         consumer = KafkaConsumer(KafkaConsumerConfig(group_id="test"))
@@ -310,7 +310,7 @@ class TestKafkaConsumer:
         mock_client = Mock()
         mock_client_class.return_value = mock_client
 
-        from kafka.structs import TopicPartition
+        from confluent_kafka import TopicPartition
 
         config = KafkaConsumerConfig(group_id="test", topic_prefix="myapp")
         consumer = KafkaConsumer(config=config)
@@ -429,7 +429,7 @@ class TestKafkaConsumer:
 
     def test_assigned_partitions_property(self):
         """Test assigned_partitions property."""
-        from kafka.structs import TopicPartition
+        from confluent_kafka import TopicPartition
 
         consumer = KafkaConsumer(KafkaConsumerConfig(group_id="test"))
         tp1 = TopicPartition("topic1", 0)
