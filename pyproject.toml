@@ -1,13 +1,11 @@
 [project]
 name = "apnamart-kafka-python"
-version = "0.2.0"
-description = "High-performance Kafka client for Python built on confluent-kafka with enterprise features and full backward compatibility"
+version = "2.0.0"
+description = "Minimal Kafka client boilerplate for Python applications built on confluent-kafka"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 dependencies = [
     "confluent-kafka>=2.4.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -44,3 +42,9 @@ warn_unused_configs = true
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "--cov=apnamart_kafka --cov-report=term-missing"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.14.1",
+    "ruff>=0.12.2",
+]
