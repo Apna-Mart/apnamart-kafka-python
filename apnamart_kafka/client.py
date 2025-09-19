@@ -202,15 +202,25 @@ class Producer:
 
         except Exception as e:
             if "Local: Queue full" in str(e):
-                raise ProducerError(f"Producer queue is full. Try calling flush() or reduce message rate: {str(e)}")
+                raise ProducerError(
+                    f"Producer queue is full. Try calling flush() or reduce message rate: {str(e)}"
+                )
             elif "Local: Message timed out" in str(e):
-                raise ProducerError(f"Message delivery timed out. Check Kafka connection: {str(e)}")
+                raise ProducerError(
+                    f"Message delivery timed out. Check Kafka connection: {str(e)}"
+                )
             elif "Broker: Unknown topic" in str(e):
-                raise ProducerError(f"Topic '{topic}' does not exist or is not accessible: {str(e)}")
+                raise ProducerError(
+                    f"Topic '{topic}' does not exist or is not accessible: {str(e)}"
+                )
             else:
-                raise ProducerError(f"Failed to send message to topic '{topic}': {str(e)}")
+                raise ProducerError(
+                    f"Failed to send message to topic '{topic}': {str(e)}"
+                )
 
-    def send_batch(self, messages: List[Union[Dict[str, Any], tuple]]) -> List[Dict[str, Any]]:
+    def send_batch(
+        self, messages: List[Union[Dict[str, Any], tuple]]
+    ) -> List[Dict[str, Any]]:
         """Send multiple messages.
 
         Args:
@@ -238,7 +248,10 @@ class Producer:
                         topic, value, key = msg
                     else:
                         results.append(
-                            {"success": False, "error": "Tuple format must be (topic, value) or (topic, value, key)"}
+                            {
+                                "success": False,
+                                "error": "Tuple format must be (topic, value) or (topic, value, key)",
+                            }
                         )
                         continue
                 elif isinstance(msg, dict):
@@ -247,7 +260,10 @@ class Producer:
                     key = msg.get("key")
                 else:
                     results.append(
-                        {"success": False, "error": "Message must be dict or tuple format"}
+                        {
+                            "success": False,
+                            "error": "Message must be dict or tuple format",
+                        }
                     )
                     continue
 
@@ -265,7 +281,9 @@ class Producer:
                 results.append({"success": True, "topic": topic})
 
             except Exception as e:
-                results.append({"success": False, "error": f"Failed to send message: {str(e)}"})
+                results.append(
+                    {"success": False, "error": f"Failed to send message: {str(e)}"}
+                )
 
         # Wait for delivery
         producer.flush(timeout=10)
@@ -359,10 +377,12 @@ class Consumer:
                 elif error_code == ConfluentKafkaError.UNKNOWN_TOPIC_OR_PART:
                     raise ConsumerError(f"Unknown topic or partition: {msg.error()}")
                 elif error_code == ConfluentKafkaError._TRANSPORT:
-                    raise ConsumerError(f"Transport error (check Kafka connection): {msg.error()}")
-                elif error_code == ConfluentKafkaError._AUTHENTICATION:
+                    raise ConsumerError(
+                        f"Transport error (check Kafka connection): {msg.error()}"
+                    )
+                elif error_code == ConfluentKafkaError.SASL_AUTHENTICATION_FAILED:
                     raise ConsumerError(f"Authentication failed: {msg.error()}")
-                elif error_code == ConfluentKafkaError._AUTHORIZATION:
+                elif error_code == ConfluentKafkaError.TOPIC_AUTHORIZATION_FAILED:
                     raise ConsumerError(f"Authorization failed: {msg.error()}")
                 else:
                     raise ConsumerError(f"Consumer error [{error_code}]: {msg.error()}")
@@ -502,7 +522,9 @@ class TransactionalProducer(Producer):
         producer.abort_transaction()
         self._in_transaction = False
 
-    def send_transactional(self, topic: str, value: Any, key: Any = None, **kwargs: Any) -> None:
+    def send_transactional(
+        self, topic: str, value: Any, key: Any = None, **kwargs: Any
+    ) -> None:
         """Send a single message within the current transaction.
 
         Args:
@@ -520,7 +542,9 @@ class TransactionalProducer(Producer):
         # Use the regular send method which handles serialization
         self.send(topic, value, key, **kwargs)
 
-    def send_batch_transactional(self, messages: List[Union[Dict[str, Any], tuple]]) -> None:
+    def send_batch_transactional(
+        self, messages: List[Union[Dict[str, Any], tuple]]
+    ) -> None:
         """Send multiple messages in a single transaction.
 
         Args:
@@ -544,7 +568,9 @@ class TransactionalProducer(Producer):
                     elif len(msg) == 3:
                         topic, value, key = msg
                     else:
-                        raise TransactionError("Tuple format must be (topic, value) or (topic, value, key)")
+                        raise TransactionError(
+                            "Tuple format must be (topic, value) or (topic, value, key)"
+                        )
                 elif isinstance(msg, dict):
                     topic = msg.get("topic")
                     value = msg.get("value")

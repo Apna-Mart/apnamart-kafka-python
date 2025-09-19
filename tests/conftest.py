@@ -24,7 +24,7 @@ def test_config(kafka_servers: str) -> Config:
         bootstrap_servers=kafka_servers,
         acks="all",
         retries=3,
-        auto_offset_reset="earliest"
+        auto_offset_reset="earliest",
     )
 
 
@@ -73,19 +73,23 @@ def producer(test_config: Config) -> Generator[Producer, None, None]:
 
 
 @pytest.fixture
-def consumer(test_topic: str, test_group: str, kafka_servers: str) -> Generator[Consumer, None, None]:
+def consumer(
+    test_topic: str, test_group: str, kafka_servers: str
+) -> Generator[Consumer, None, None]:
     """Create test consumer."""
     config = Config(
         bootstrap_servers=kafka_servers,
         group_id=test_group,
-        auto_offset_reset="earliest"
+        auto_offset_reset="earliest",
     )
     with Consumer(test_topic, config) as consumer:
         yield consumer
 
 
 @pytest.fixture
-def transactional_producer(kafka_servers: str) -> Generator[TransactionalProducer, None, None]:
+def transactional_producer(
+    kafka_servers: str,
+) -> Generator[TransactionalProducer, None, None]:
     """Create test transactional producer."""
     tx_id = f"test-tx-{uuid.uuid4().hex[:8]}"
     config = Config(bootstrap_servers=kafka_servers)
@@ -111,5 +115,9 @@ def pytest_configure(config):
         "markers", "integration: marks tests as integration tests (requires Kafka)"
     )
     config.addinivalue_line(
-        "markers", "slow: marks tests as slow running"
+        "markers", "benchmark: marks tests as performance benchmarks"
     )
+    config.addinivalue_line(
+        "markers", "stress: marks tests as stress tests (high load)"
+    )
+    config.addinivalue_line("markers", "slow: marks tests as slow running")

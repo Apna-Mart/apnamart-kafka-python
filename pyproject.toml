@@ -1,7 +1,7 @@
 [project]
 name = "apnamart-kafka-python"
 version = "2.0.0"
-description = "Minimal Kafka client boilerplate for Python applications built on confluent-kafka"
+description = "The easiest way to use Apache Kafka in Python - production-ready client built on confluent-kafka"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
@@ -41,12 +41,36 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "--cov=apnamart_kafka --cov-report=term-missing"
+addopts = [
+    "--cov=apnamart_kafka",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-fail-under=90",
+    "-v",
+    "--tb=short",
+    "--strict-markers"
+]
+markers = [
+    "unit: Unit tests (no external dependencies)",
+    "integration: Integration tests (requires Kafka)",
+    "benchmark: Performance benchmark tests",
+    "stress: Stress tests (high load)",
+    "slow: Slow running tests"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:confluent_kafka.*",
+    "ignore::pytest.PytestUnraisableExceptionWarning"
+]
+timeout = 300
+testmon_off = true
 
 [dependency-groups]
 dev = [
     "faker>=35.2.2",
     "mypy>=1.14.1",
+    "psutil>=7.1.0",
     "pytest>=8.3.5",
+    "pytest-benchmark>=4.0.0",
+    "pytest-cov>=5.0.0",
     "ruff>=0.12.2",
 ]
