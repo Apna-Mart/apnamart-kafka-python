@@ -1,0 +1,43 @@
+{
+  "name": "apnamart-kafka-node",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rslib build",
+    "check": "biome check --write",
+    "dev": "rslib build --watch",
+    "format": "biome format --write",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:performance": "vitest run tests/performance --config vitest.config.ts",
+    "test:watch": "vitest",
+    "test:all": "vitest run && vitest run tests/performance --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.3",
+    "@rslib/core": "^0.13.3",
+    "@types/node": "^22.18.4",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "private": true,
+  "trustedDependencies": [
+    "core-js"
+  ],
+  "dependencies": {
+    "kafkajs": "^2.2.4"
+  }
+}
