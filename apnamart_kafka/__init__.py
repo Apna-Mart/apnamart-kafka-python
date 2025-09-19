@@ -1,34 +1,37 @@
-"""Apna-Mart Kafka Python - A scalable Kafka producer and consumer library for Python services."""
+"""ApnaMart Kafka Python - Minimal Kafka client boilerplate for Python applications."""
 
-from .base import BaseKafkaClient, BaseKafkaConfig, IHealthCheck, IMetrics, IMonitoring
-from .common import BasicMonitoringHandler, MetricsCollector, PluginManager
-from .config import KafkaConfig
-from .consumer import ConsumerMessage, KafkaConsumer
-from .consumer_config import KafkaConsumerConfig
-from .exceptions import ConfigurationError, KafkaProducerError, SerializationError
-from .producer import KafkaProducer
+# Import everything from unified client
+from .client import (
+    Config,
+    Consumer,
+    ConsumerError,
+    KafkaError,
+    Message,
+    Producer,
+    ProducerError,
+    TransactionalProducer,
+    TransactionError,
+    consume,
+    deserialize,
+    send,
+    serialize,
+)
 
-__version__ = "0.1.1"
+__version__ = "2.0.0"
+
+# Simple, clean exports
 __all__ = [
-    # Core classes
-    "KafkaProducer",
-    "KafkaConsumer",
-    "KafkaConfig",
-    "KafkaConsumerConfig",
-    "ConsumerMessage",
-    # Base classes for extensibility
-    "BaseKafkaClient",
-    "BaseKafkaConfig",
-    # Interfaces
-    "IHealthCheck",
-    "IMetrics",
-    "IMonitoring",
-    # Common utilities
-    "BasicMonitoringHandler",
-    "MetricsCollector",
-    "PluginManager",
-    # Exceptions
-    "KafkaProducerError",
-    "ConfigurationError",
-    "SerializationError",
+    "Config",
+    "Producer",
+    "Consumer",
+    "TransactionalProducer",
+    "Message",
+    "KafkaError",
+    "ProducerError",
+    "ConsumerError",
+    "TransactionError",
+    "send",
+    "consume",
+    "serialize",
+    "deserialize",
 ]

@@ -1,1 +1,1 @@
-"""Test package for generic Kafka producer."""
+"""Tests for apnamart-kafka-python."""
