@@ -45,6 +45,8 @@ addopts = "--cov=apnamart_kafka --cov-report=term-missing"
 
 [dependency-groups]
 dev = [
+    "faker>=35.2.2",
     "mypy>=1.14.1",
+    "pytest>=8.3.5",
     "ruff>=0.12.2",
 ]

@@ -53,12 +53,20 @@ with Consumer("my-topic", group_id="my-service") as consumer:
 ```python
 from apnamart_kafka import TransactionalProducer
 
-# Automatic transaction
+# Manual transaction control
 with TransactionalProducer("my-tx-id") as producer:
     producer.begin()
-    producer.send("topic1", {"data": "message1"})
-    producer.send("topic2", {"data": "message2"})
+    producer.send_transactional("topic1", {"data": "message1"})
+    producer.send_transactional("topic2", {"data": "message2"})
     producer.commit()
+
+# Automatic batch transaction
+with TransactionalProducer("my-tx-id") as producer:
+    messages = [
+        ("topic1", {"data": "message1"}),
+        ("topic2", {"data": "message2"})
+    ]
+    producer.send_batch_transactional(messages)
 ```
 
 ## Configuration
@@ -202,16 +210,66 @@ apnamart_kafka/
 
 That's it! Only 2 files with all the functionality you need.
 
+## Batch Message Formats
+
+The `send_batch` method supports both tuple and dict formats for flexibility:
+
+```python
+from apnamart_kafka import Producer
+
+with Producer() as producer:
+    # Tuple format: (topic, value) or (topic, value, key)
+    tuple_messages = [
+        ("events", {"user": "john", "action": "login"}),
+        ("events", {"user": "jane", "action": "logout"}, "user-jane"),
+        ("notifications", {"message": "Welcome!"})
+    ]
+
+    # Dict format: {"topic": topic, "value": value, "key": key}
+    dict_messages = [
+        {"topic": "events", "value": {"user": "bob"}, "key": "user-bob"},
+        {"topic": "logs", "value": {"level": "info", "message": "Started"}}
+    ]
+
+    # Mixed formats work too
+    mixed_messages = [
+        ("events", {"mixed": True}),
+        {"topic": "events", "value": {"dict": True}}
+    ]
+
+    # All formats work
+    producer.send_batch(tuple_messages)
+    producer.send_batch(dict_messages)
+    producer.send_batch(mixed_messages)
+```
+
+## Recent Improvements (v2.0.0)
+
+### Fixed TransactionalProducer API
+- **Fixed**: `send_transactional(topic, value, key=None)` now works as expected
+- **Added**: `send_batch_transactional()` for automatic batch transactions
+- **Improved**: Better error messages for transaction failures
+
+### Enhanced Batch Operations
+- **Fixed**: `send_batch()` now supports both tuple `(topic, value)` and dict formats
+- **Added**: Mixed format support in single batch
+- **Improved**: Better error reporting for individual message failures
+
+### Better Error Handling
+- **Improved**: More descriptive error messages with context
+- **Added**: Specific error types for different failure scenarios
+- **Enhanced**: Consumer error handling for unknown topics and connection issues
+
 ## API Reference
 
 ### Producer
 - `send(topic, value, key=None, **kwargs)` - Quick send function
 - `Producer(config=None, **kwargs)` - Producer class
 - `producer.send(topic, value, key=None)` - Send message
-- `producer.send_batch(messages)` - Send multiple messages
+- `producer.send_batch(messages)` - Send multiple messages (supports tuple and dict formats)
 - `producer.flush()` - Wait for delivery
 
-### Consumer  
+### Consumer
 - `consume(topics, **kwargs)` - Quick consume iterator
 - `Consumer(topics, config=None, **kwargs)` - Consumer class
 - `consumer.poll(timeout=1.0)` - Poll single message
@@ -221,7 +279,8 @@ That's it! Only 2 files with all the functionality you need.
 ### TransactionalProducer
 - `TransactionalProducer(transactional_id, **kwargs)` - Transaction producer
 - `begin()`, `commit()`, `abort()` - Transaction control
-- `send_transactional(messages)` - Automatic transaction
+- `send_transactional(topic, value, key=None)` - Send single message in transaction
+- `send_batch_transactional(messages)` - Send batch in automatic transaction
 
 ### Message
 - `message.topic` - Topic name

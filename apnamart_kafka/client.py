@@ -170,24 +170,57 @@ class Producer:
         return self._producer
 
     def send(self, topic: str, value: Any, key: Any = None, **kwargs: Any) -> None:
-        """Send a message."""
+        """Send a message to Kafka topic.
+
+        Args:
+            topic: Kafka topic name
+            value: Message value (will be auto-serialized to JSON/bytes)
+            key: Message key (optional, will be auto-serialized)
+            **kwargs: Additional arguments passed to confluent_kafka produce()
+
+        Raises:
+            ProducerError: On producer errors (closed producer, invalid topic, etc.)
+        """
         if self._closed:
             raise ProducerError("Producer is closed")
 
-        producer = self._get_producer()
+        if not topic:
+            raise ProducerError("Topic name cannot be empty")
 
-        # Serialize data
-        serialized_key = serialize(key) if key is not None else None
-        serialized_value = serialize(value)
+        try:
+            producer = self._get_producer()
 
-        # Send message
-        producer.produce(
-            topic=topic, value=serialized_value, key=serialized_key, **kwargs
-        )
-        producer.poll(0)  # Trigger delivery
+            # Serialize data
+            serialized_key = serialize(key) if key is not None else None
+            serialized_value = serialize(value)
 
-    def send_batch(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Send multiple messages."""
+            # Send message
+            producer.produce(
+                topic=topic, value=serialized_value, key=serialized_key, **kwargs
+            )
+            producer.poll(0)  # Trigger delivery
+
+        except Exception as e:
+            if "Local: Queue full" in str(e):
+                raise ProducerError(f"Producer queue is full. Try calling flush() or reduce message rate: {str(e)}")
+            elif "Local: Message timed out" in str(e):
+                raise ProducerError(f"Message delivery timed out. Check Kafka connection: {str(e)}")
+            elif "Broker: Unknown topic" in str(e):
+                raise ProducerError(f"Topic '{topic}' does not exist or is not accessible: {str(e)}")
+            else:
+                raise ProducerError(f"Failed to send message to topic '{topic}': {str(e)}")
+
+    def send_batch(self, messages: List[Union[Dict[str, Any], tuple]]) -> List[Dict[str, Any]]:
+        """Send multiple messages.
+
+        Args:
+            messages: List of messages in format:
+                - Dict format: {"topic": "topic", "value": value, "key": key}
+                - Tuple format: (topic, value) or (topic, value, key)
+
+        Returns:
+            List of results with success/error status for each message
+        """
         if self._closed:
             raise ProducerError("Producer is closed")
 
@@ -196,9 +229,27 @@ class Producer:
 
         for msg in messages:
             try:
-                topic = msg.get("topic")
-                value = msg.get("value")
-                key = msg.get("key")
+                # Handle both dict and tuple formats
+                if isinstance(msg, tuple):
+                    if len(msg) == 2:
+                        topic, value = msg
+                        key = None
+                    elif len(msg) == 3:
+                        topic, value, key = msg
+                    else:
+                        results.append(
+                            {"success": False, "error": "Tuple format must be (topic, value) or (topic, value, key)"}
+                        )
+                        continue
+                elif isinstance(msg, dict):
+                    topic = msg.get("topic")
+                    value = msg.get("value")
+                    key = msg.get("key")
+                else:
+                    results.append(
+                        {"success": False, "error": "Message must be dict or tuple format"}
+                    )
+                    continue
 
                 if not topic or value is None:
                     results.append(
@@ -211,10 +262,10 @@ class Producer:
                     value=serialize(value),
                     key=serialize(key) if key is not None else None,
                 )
-                results.append({"success": True})
+                results.append({"success": True, "topic": topic})
 
             except Exception as e:
-                results.append({"success": False, "error": str(e)})
+                results.append({"success": False, "error": f"Failed to send message: {str(e)}"})
 
         # Wait for delivery
         producer.flush(timeout=10)
@@ -279,22 +330,50 @@ class Consumer:
         return self._consumer
 
     def poll(self, timeout: float = 1.0) -> Optional[Message]:
-        """Poll for a message."""
+        """Poll for a message.
+
+        Args:
+            timeout: Maximum time to wait for a message (in seconds)
+
+        Returns:
+            Message object if available, None if timeout or no messages
+
+        Raises:
+            ConsumerError: On consumer errors (connection issues, invalid config, etc.)
+        """
         if self._closed:
             raise ConsumerError("Consumer is closed")
 
-        consumer = self._get_consumer()
-        msg = consumer.poll(timeout)
+        try:
+            consumer = self._get_consumer()
+            msg = consumer.poll(timeout)
 
-        if msg is None:
-            return None
-
-        if msg.error():
-            if msg.error().code() == ConfluentKafkaError._PARTITION_EOF:
+            if msg is None:
                 return None
-            raise ConsumerError(f"Consumer error: {msg.error()}")
 
-        return Message(msg)
+            if msg.error():
+                error_code = msg.error().code()
+                if error_code == ConfluentKafkaError._PARTITION_EOF:
+                    # End of partition - not an error, just no more messages
+                    return None
+                elif error_code == ConfluentKafkaError.UNKNOWN_TOPIC_OR_PART:
+                    raise ConsumerError(f"Unknown topic or partition: {msg.error()}")
+                elif error_code == ConfluentKafkaError._TRANSPORT:
+                    raise ConsumerError(f"Transport error (check Kafka connection): {msg.error()}")
+                elif error_code == ConfluentKafkaError._AUTHENTICATION:
+                    raise ConsumerError(f"Authentication failed: {msg.error()}")
+                elif error_code == ConfluentKafkaError._AUTHORIZATION:
+                    raise ConsumerError(f"Authorization failed: {msg.error()}")
+                else:
+                    raise ConsumerError(f"Consumer error [{error_code}]: {msg.error()}")
+
+            return Message(msg)
+
+        except ConsumerError:
+            # Re-raise our custom errors
+            raise
+        except Exception as e:
+            raise ConsumerError(f"Unexpected error while polling: {str(e)}")
 
     def poll_batch(self, size: int = 100, timeout: float = 10) -> List[Message]:
         """Poll for multiple messages."""
@@ -423,17 +502,61 @@ class TransactionalProducer(Producer):
         producer.abort_transaction()
         self._in_transaction = False
 
-    def send_transactional(self, messages: List[Dict[str, Any]]) -> None:
-        """Send messages in a transaction."""
+    def send_transactional(self, topic: str, value: Any, key: Any = None, **kwargs: Any) -> None:
+        """Send a single message within the current transaction.
+
+        Args:
+            topic: Kafka topic name
+            value: Message value (will be auto-serialized)
+            key: Message key (optional, will be auto-serialized)
+            **kwargs: Additional arguments passed to confluent_kafka produce()
+
+        Note:
+            This method requires an active transaction. Use begin() first.
+        """
+        if not self._in_transaction:
+            raise TransactionError("No active transaction. Call begin() first.")
+
+        # Use the regular send method which handles serialization
+        self.send(topic, value, key, **kwargs)
+
+    def send_batch_transactional(self, messages: List[Union[Dict[str, Any], tuple]]) -> None:
+        """Send multiple messages in a single transaction.
+
+        Args:
+            messages: List of messages in format:
+                - Dict format: {"topic": "topic", "value": value, "key": key}
+                - Tuple format: (topic, value) or (topic, value, key)
+
+        This method automatically begins and commits the transaction.
+        """
         if self._in_transaction:
             raise TransactionError("Transaction already in progress")
 
         self.begin()
         try:
+            # Process messages similar to send_batch but use send method
             for msg in messages:
-                topic = msg.get("topic")
-                if topic:
-                    self.send(topic, msg.get("value"), msg.get("key"))
+                if isinstance(msg, tuple):
+                    if len(msg) == 2:
+                        topic, value = msg
+                        key = None
+                    elif len(msg) == 3:
+                        topic, value, key = msg
+                    else:
+                        raise TransactionError("Tuple format must be (topic, value) or (topic, value, key)")
+                elif isinstance(msg, dict):
+                    topic = msg.get("topic")
+                    value = msg.get("value")
+                    key = msg.get("key")
+                else:
+                    raise TransactionError("Message must be dict or tuple format")
+
+                if not topic or value is None:
+                    raise TransactionError("Missing topic or value in message")
+
+                self.send(topic, value, key)
+
             self.commit()
         except Exception as e:
             self.abort()
