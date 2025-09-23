@@ -7,7 +7,7 @@ export default defineConfig({
     include: ['tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     exclude: ['node_modules', 'dist', 'build'],
     setupFiles: ['tests/setup.ts'],
-    testTimeout: 30000,
+    testTimeout: 60000, // Increased for KRaft mode stability
     pool: 'threads',
     coverage: {
       provider: 'v8',
@@ -36,7 +36,9 @@ export const performanceConfig = defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/performance/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    include: [
+      'tests/performance/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+    ],
     exclude: ['node_modules', 'dist', 'build'],
     setupFiles: ['tests/setup.ts'],
     testTimeout: 180000, // 3 minutes for performance tests

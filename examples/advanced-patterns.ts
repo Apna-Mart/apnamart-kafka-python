@@ -9,7 +9,7 @@
  * - Consumer group coordination
  */
 
-import { Config, Producer, Consumer, type MessageInput } from '../src/index.ts';
+import { Config, Consumer, type MessageInput, Producer } from '../src/index.ts';
 
 // Dead Letter Queue Pattern
 async function deadLetterQueueExample() {
@@ -22,17 +22,23 @@ async function deadLetterQueueExample() {
   });
 
   const producer = new Producer(config);
-  const mainConsumer = new Consumer(['main-topic'], new Config({
-    ...config,
-    groupId: 'main-processor-group',
-    autoOffsetReset: 'earliest',
-  }));
+  const mainConsumer = new Consumer(
+    ['main-topic'],
+    new Config({
+      ...config,
+      groupId: 'main-processor-group',
+      autoOffsetReset: 'earliest',
+    }),
+  );
 
-  const dlqConsumer = new Consumer(['dlq-topic'], new Config({
-    ...config,
-    groupId: 'dlq-processor-group',
-    autoOffsetReset: 'earliest',
-  }));
+  const dlqConsumer = new Consumer(
+    ['dlq-topic'],
+    new Config({
+      ...config,
+      groupId: 'dlq-processor-group',
+      autoOffsetReset: 'earliest',
+    }),
+  );
 
   try {
     console.log('📤 Sending test messages...');
@@ -60,10 +66,18 @@ async function deadLetterQueueExample() {
       const message = await mainConsumer.poll(5000);
       if (!message) continue;
 
-      const messageData = message.value as { id: number; data: string; type: string };
+      const messageData = message.value as {
+        id: number;
+        data: string;
+        type: string;
+      };
 
       // Simulate processing logic
-      const success = await processMessageWithRetry(messageData, producer, message.key);
+      const success = await processMessageWithRetry(
+        messageData,
+        producer,
+        message.key,
+      );
 
       if (success) {
         processedMessages.push(messageData);
@@ -73,12 +87,16 @@ async function deadLetterQueueExample() {
         failedMessages.push(messageData);
 
         // Send to DLQ
-        await producer.send('dlq-topic', {
-          ...messageData,
-          originalTopic: 'main-topic',
-          failureReason: 'Processing failed after retries',
-          failedAt: new Date().toISOString(),
-        }, message.key);
+        await producer.send(
+          'dlq-topic',
+          {
+            ...messageData,
+            originalTopic: 'main-topic',
+            failureReason: 'Processing failed after retries',
+            failedAt: new Date().toISOString(),
+          },
+          message.key,
+        );
 
         await mainConsumer.commit(message);
         console.log(`🚫 Moved message ${messageData.id} to DLQ`);
@@ -91,10 +109,9 @@ async function deadLetterQueueExample() {
 
     // Check DLQ
     console.log('\n📭 Checking DLQ...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     const dlqMessages = await dlqConsumer.pollBatch(10, 5000);
     console.log(`📬 DLQ contains ${dlqMessages.length} failed messages`);
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
@@ -109,7 +126,7 @@ async function processMessageWithRetry(
   message: { id: number; data: string; type: string },
   producer: Producer,
   key: string | null,
-  maxRetries = 3
+  maxRetries = 3,
 ): Promise<boolean> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -119,21 +136,24 @@ async function processMessageWithRetry(
       }
 
       // Simulate occasional failures
-      if (Math.random() < 0.1 && attempt === 1) { // 10% chance of initial failure
+      if (Math.random() < 0.1 && attempt === 1) {
+        // 10% chance of initial failure
         throw new Error('Temporary processing failure');
       }
 
       // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       return true; // Success
     } catch (error) {
-      console.log(`  🔄 Retry ${attempt}/${maxRetries} for message ${message.id}: ${error.message}`);
+      console.log(
+        `  🔄 Retry ${attempt}/${maxRetries} for message ${message.id}: ${error.message}`,
+      );
 
       if (attempt < maxRetries) {
         // Exponential backoff
-        const delay = Math.pow(2, attempt - 1) * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        const delay = 2 ** (attempt - 1) * 1000;
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
@@ -151,11 +171,14 @@ async function messageDeduplicationExample() {
   });
 
   const producer = new Producer(config);
-  const consumer = new Consumer(['dedup-topic'], new Config({
-    ...config,
-    groupId: 'dedup-processor-group',
-    autoOffsetReset: 'earliest',
-  }));
+  const consumer = new Consumer(
+    ['dedup-topic'],
+    new Config({
+      ...config,
+      groupId: 'dedup-processor-group',
+      autoOffsetReset: 'earliest',
+    }),
+  );
 
   // Simple in-memory deduplication store (in production, use Redis or database)
   const processedMessageIds = new Set<string>();
@@ -177,7 +200,7 @@ async function messageDeduplicationExample() {
       await producer.send('dedup-topic', message, message.id, {
         headers: {
           'idempotency-key': message.id,
-          'timestamp': Date.now().toString(),
+          timestamp: Date.now().toString(),
         },
       });
     }
@@ -203,7 +226,7 @@ async function messageDeduplicationExample() {
         console.log(`✅ Processing new message: ${messageData.id}`);
 
         // Simulate processing
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
       await consumer.commit(message);
@@ -212,7 +235,6 @@ async function messageDeduplicationExample() {
     console.log(`\n📊 Deduplication Summary:`);
     console.log(`  ✅ Unique messages processed: ${processedCount}`);
     console.log(`  🔄 Duplicates skipped: ${duplicateCount}`);
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
@@ -246,7 +268,11 @@ async function partitioningStrategyExample() {
     ];
 
     for (const message of userMessages) {
-      const result = await producer.send('partition-demo-topic', message, message.userId);
+      const result = await producer.send(
+        'partition-demo-topic',
+        message,
+        message.userId,
+      );
       console.log(`  User ${message.userId} -> Partition ${result.partition}`);
     }
 
@@ -270,7 +296,11 @@ async function partitioningStrategyExample() {
 
     for (const message of typedMessages) {
       // Use message type as key for consistent partitioning by type
-      const result = await producer.send('partition-demo-topic', message, message.type);
+      const result = await producer.send(
+        'partition-demo-topic',
+        message,
+        message.type,
+      );
       console.log(`  ${message.type} message -> Partition ${result.partition}`);
     }
 
@@ -278,10 +308,16 @@ async function partitioningStrategyExample() {
     console.log('\n4️⃣ Explicit partition selection:');
     for (let partition = 0; partition < 3; partition++) {
       const message = { explicit: true, targetPartition: partition };
-      const result = await producer.send('partition-demo-topic', message, null, { partition });
-      console.log(`  Explicit partition ${partition} -> Actually sent to ${result.partition}`);
+      const result = await producer.send(
+        'partition-demo-topic',
+        message,
+        null,
+        { partition },
+      );
+      console.log(
+        `  Explicit partition ${partition} -> Actually sent to ${result.partition}`,
+      );
     }
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
@@ -302,19 +338,25 @@ async function consumerGroupCoordinationExample() {
 
   // Create multiple consumers in the same group
   const groupId = `coordination-group-${Date.now()}`;
-  const consumer1 = new Consumer(['coordination-topic'], new Config({
-    ...config,
-    groupId,
-    autoOffsetReset: 'earliest',
-    sessionTimeout: 30000,
-  }));
+  const consumer1 = new Consumer(
+    ['coordination-topic'],
+    new Config({
+      ...config,
+      groupId,
+      autoOffsetReset: 'earliest',
+      sessionTimeout: 30000,
+    }),
+  );
 
-  const consumer2 = new Consumer(['coordination-topic'], new Config({
-    ...config,
-    groupId,
-    autoOffsetReset: 'earliest',
-    sessionTimeout: 30000,
-  }));
+  const consumer2 = new Consumer(
+    ['coordination-topic'],
+    new Config({
+      ...config,
+      groupId,
+      autoOffsetReset: 'earliest',
+      sessionTimeout: 30000,
+    }),
+  );
 
   try {
     console.log('📤 Sending messages for group coordination...');
@@ -348,15 +390,16 @@ async function consumerGroupCoordinationExample() {
     console.log(`\n📊 Group Coordination Results:`);
     console.log(`  Consumer-1 processed: ${consumer1Results.length} messages`);
     console.log(`  Consumer-2 processed: ${consumer2Results.length} messages`);
-    console.log(`  Total processed: ${consumer1Results.length + consumer2Results.length}`);
+    console.log(
+      `  Total processed: ${consumer1Results.length + consumer2Results.length}`,
+    );
 
     // Check for overlaps (shouldn't happen with proper coordination)
-    const consumer1Ids = new Set(consumer1Results.map(m => m.id));
-    const consumer2Ids = new Set(consumer2Results.map(m => m.id));
-    const overlaps = consumer1Results.filter(m => consumer2Ids.has(m.id));
+    const consumer1Ids = new Set(consumer1Results.map((m) => m.id));
+    const consumer2Ids = new Set(consumer2Results.map((m) => m.id));
+    const overlaps = consumer1Results.filter((m) => consumer2Ids.has(m.id));
 
     console.log(`  Overlapping messages: ${overlaps.length} (should be 0)`);
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
@@ -369,7 +412,7 @@ async function consumerGroupCoordinationExample() {
 async function consumeWithId(
   consumer: Consumer,
   consumerId: string,
-  maxMessages: number
+  maxMessages: number,
 ): Promise<Array<{ id: number; data: string }>> {
   const results: Array<{ id: number; data: string }> = [];
   let attempts = 0;
@@ -382,7 +425,9 @@ async function consumeWithId(
     if (message) {
       const messageData = message.value as { id: number; data: string };
       results.push(messageData);
-      console.log(`  ${consumerId}: Processed message ${messageData.id} from partition ${message.partition}`);
+      console.log(
+        `  ${consumerId}: Processed message ${messageData.id} from partition ${message.partition}`,
+      );
       await consumer.commit(message);
     }
   }
@@ -435,7 +480,9 @@ async function eventSourcingExample() {
         eventId: `${orderId}-003`,
         timestamp: new Date().toISOString(),
         data: {
-          items: [{ productId: 'PROD-001', quantity: 2, reservationId: 'RES-001' }],
+          items: [
+            { productId: 'PROD-001', quantity: 2, reservationId: 'RES-001' },
+          ],
         },
       },
       {
@@ -446,7 +493,9 @@ async function eventSourcingExample() {
         data: {
           trackingNumber: 'TRACK-001',
           carrier: 'DHL',
-          estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          estimatedDelivery: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
         },
       },
     ];
@@ -462,20 +511,25 @@ async function eventSourcingExample() {
         },
       });
 
-      console.log(`  📝 Published: ${event.eventType} for ${event.aggregateId}`);
+      console.log(
+        `  📝 Published: ${event.eventType} for ${event.aggregateId}`,
+      );
 
       // Small delay to ensure ordering
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     console.log(`\n✅ Event stream published for order ${orderId}`);
 
     // Demonstrate event replay/reconstruction
-    const consumer = new Consumer(['events-topic'], new Config({
-      ...config,
-      groupId: `event-replay-${Date.now()}`,
-      autoOffsetReset: 'earliest',
-    }));
+    const consumer = new Consumer(
+      ['events-topic'],
+      new Config({
+        ...config,
+        groupId: `event-replay-${Date.now()}`,
+        autoOffsetReset: 'earliest',
+      }),
+    );
 
     console.log('\n📖 Replaying events to reconstruct state...');
 
@@ -520,13 +574,14 @@ async function eventSourcingExample() {
           break;
       }
 
-      console.log(`  🔄 Applied ${event.eventType} -> Status: ${orderState.status}`);
+      console.log(
+        `  🔄 Applied ${event.eventType} -> Status: ${orderState.status}`,
+      );
     }
 
     console.log('\n📊 Final reconstructed state:', orderState);
 
     await consumer.close();
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
@@ -537,7 +592,7 @@ async function eventSourcingExample() {
 // Run all examples
 if (import.meta.main) {
   console.log('🎯 Running Advanced Kafka Patterns Examples\n');
-  console.log('=' .repeat(80) + '\n');
+  console.log('='.repeat(80) + '\n');
 
   await deadLetterQueueExample();
   console.log('\n' + '='.repeat(80) + '\n');

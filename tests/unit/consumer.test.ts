@@ -130,7 +130,9 @@ describe('Consumer', () => {
     it('should throw error when not subscribed to any topics', async () => {
       const consumer = new Consumer([]);
 
-      await expect(consumer.poll()).rejects.toThrow('Consumer is not subscribed to any topics');
+      await expect(consumer.poll()).rejects.toThrow(
+        'Consumer is not subscribed to any topics',
+      );
     });
 
     it('should handle connection errors', async () => {
@@ -305,7 +307,9 @@ describe('Consumer', () => {
       const consumer = new Consumer(['test-topic']);
       await consumer.close();
 
-      await expect(consumer.seek('test-topic', 0, '100')).rejects.toThrow(ConsumerError);
+      await expect(consumer.seek('test-topic', 0, '100')).rejects.toThrow(
+        ConsumerError,
+      );
     });
 
     it('should handle seek errors', async () => {
@@ -314,7 +318,9 @@ describe('Consumer', () => {
       });
       const consumer = new Consumer(['test-topic']);
 
-      await expect(consumer.seek('test-topic', 0, '100')).rejects.toThrow(ConsumerError);
+      await expect(consumer.seek('test-topic', 0, '100')).rejects.toThrow(
+        ConsumerError,
+      );
     });
   });
 
@@ -410,35 +416,45 @@ describe('Consumer', () => {
       mockConnect.mockRejectedValue(new Error('Unknown topic'));
       const consumer = new Consumer(['unknown-topic']);
 
-      await expect(consumer.poll()).rejects.toThrow('Failed to connect consumer: Unknown topic');
+      await expect(consumer.poll()).rejects.toThrow(
+        'Failed to connect consumer: Unknown topic',
+      );
     });
 
     it('should handle connection failed error', async () => {
       mockConnect.mockRejectedValue(new Error('Connection failed'));
       const consumer = new Consumer(['test-topic']);
 
-      await expect(consumer.poll()).rejects.toThrow('Failed to connect consumer: Connection failed');
+      await expect(consumer.poll()).rejects.toThrow(
+        'Failed to connect consumer: Connection failed',
+      );
     });
 
     it('should handle SASL authentication error', async () => {
       mockConnect.mockRejectedValue(new Error('SASL authentication failed'));
       const consumer = new Consumer(['test-topic']);
 
-      await expect(consumer.poll()).rejects.toThrow('Failed to connect consumer: SASL authentication failed');
+      await expect(consumer.poll()).rejects.toThrow(
+        'Failed to connect consumer: SASL authentication failed',
+      );
     });
 
     it('should handle authorization error', async () => {
       mockConnect.mockRejectedValue(new Error('Not authorized'));
       const consumer = new Consumer(['test-topic']);
 
-      await expect(consumer.poll()).rejects.toThrow('Failed to connect consumer: Not authorized');
+      await expect(consumer.poll()).rejects.toThrow(
+        'Failed to connect consumer: Not authorized',
+      );
     });
 
     it('should handle generic consumer error', async () => {
       mockConnect.mockRejectedValue(new Error('Some other error'));
       const consumer = new Consumer(['test-topic']);
 
-      await expect(consumer.poll()).rejects.toThrow('Failed to connect consumer: Some other error');
+      await expect(consumer.poll()).rejects.toThrow(
+        'Failed to connect consumer: Some other error',
+      );
     });
   });
 });

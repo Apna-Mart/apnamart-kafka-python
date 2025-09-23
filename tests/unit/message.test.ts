@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import type { EachMessagePayload } from 'kafkajs';
+import { describe, expect, it } from 'vitest';
 import { Message } from '../../src/index.ts';
 
 describe('Message', () => {
@@ -217,7 +217,9 @@ describe('Message', () => {
       const message = new Message(payload);
       const result = message.toString();
 
-      expect(result).toBe("Message(topic='test-topic', partition=2, offset=456)");
+      expect(result).toBe(
+        "Message(topic='test-topic', partition=2, offset=456)",
+      );
     });
 
     it('should handle different partition and offset values', () => {

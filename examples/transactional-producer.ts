@@ -5,7 +5,12 @@
  * for atomic message operations across multiple topics.
  */
 
-import { Config, TransactionalProducer, Consumer, type MessageInput } from '../src/index.ts';
+import {
+  Config,
+  Consumer,
+  type MessageInput,
+  TransactionalProducer,
+} from '../src/index.ts';
 
 async function basicTransactionExample() {
   console.log('🚀 Starting Basic Transaction Example...\n');
@@ -25,7 +30,7 @@ async function basicTransactionExample() {
       ...config,
       groupId: 'tx-demo-group',
       autoOffsetReset: 'earliest',
-    })
+    }),
   );
 
   try {
@@ -60,7 +65,7 @@ async function basicTransactionExample() {
     console.log('✅ Transaction committed successfully');
 
     // Verify messages are visible
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     const messages = await consumer.pollBatch(3, 10000);
     console.log(`📨 Received ${messages.length} committed messages`);
 
@@ -88,10 +93,11 @@ async function basicTransactionExample() {
     console.log('🚫 Transaction aborted');
 
     // Verify messages are NOT visible
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     const abortedMessages = await consumer.pollBatch(2, 2000);
-    console.log(`📭 Received ${abortedMessages.length} messages after abort (should be 0)`);
-
+    console.log(
+      `📭 Received ${abortedMessages.length} messages after abort (should be 0)`,
+    );
   } catch (error) {
     console.error('❌ Error:', error);
     // In case of error, try to abort
@@ -122,15 +128,25 @@ async function batchTransactionExample() {
     console.log('📦 Sending batch within single transaction...');
 
     const batchMessages: MessageInput[] = [
-      ['tx-demo-topic', { id: 1, type: 'user_registration', userId: 'user123' }],
-      ['tx-demo-topic', { id: 2, type: 'profile_created', userId: 'user123' }, 'user123'],
+      [
+        'tx-demo-topic',
+        { id: 1, type: 'user_registration', userId: 'user123' },
+      ],
+      [
+        'tx-demo-topic',
+        { id: 2, type: 'profile_created', userId: 'user123' },
+        'user123',
+      ],
       {
         topic: 'tx-demo-topic',
         value: { id: 3, type: 'welcome_email_sent', userId: 'user123' },
         key: 'user123',
         headers: { 'email-type': 'welcome' },
       },
-      ['tx-demo-topic', { id: 4, type: 'onboarding_started', userId: 'user123' }],
+      [
+        'tx-demo-topic',
+        { id: 4, type: 'onboarding_started', userId: 'user123' },
+      ],
     ];
 
     // Send entire batch as one transaction
@@ -151,7 +167,6 @@ async function batchTransactionExample() {
     } catch (error) {
       console.log('🚫 Batch transaction failed as expected:', error.message);
     }
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
@@ -171,23 +186,32 @@ async function crossTopicTransactionExample() {
   const txProducer = new TransactionalProducer(transactionalId, config);
 
   // Create consumers for different topics
-  const orderConsumer = new Consumer(['orders-topic'], new Config({
-    ...config,
-    groupId: 'order-consumer-group',
-    autoOffsetReset: 'latest',
-  }));
+  const orderConsumer = new Consumer(
+    ['orders-topic'],
+    new Config({
+      ...config,
+      groupId: 'order-consumer-group',
+      autoOffsetReset: 'latest',
+    }),
+  );
 
-  const paymentConsumer = new Consumer(['payments-topic'], new Config({
-    ...config,
-    groupId: 'payment-consumer-group',
-    autoOffsetReset: 'latest',
-  }));
+  const paymentConsumer = new Consumer(
+    ['payments-topic'],
+    new Config({
+      ...config,
+      groupId: 'payment-consumer-group',
+      autoOffsetReset: 'latest',
+    }),
+  );
 
-  const inventoryConsumer = new Consumer(['inventory-topic'], new Config({
-    ...config,
-    groupId: 'inventory-consumer-group',
-    autoOffsetReset: 'latest',
-  }));
+  const inventoryConsumer = new Consumer(
+    ['inventory-topic'],
+    new Config({
+      ...config,
+      groupId: 'inventory-consumer-group',
+      autoOffsetReset: 'latest',
+    }),
+  );
 
   try {
     console.log('🔄 Executing cross-topic transaction...');
@@ -198,48 +222,64 @@ async function crossTopicTransactionExample() {
     const orderId = `ORD-${Date.now()}`;
 
     // 1. Create order
-    await txProducer.sendTransactional('orders-topic', {
+    await txProducer.sendTransactional(
+      'orders-topic',
+      {
+        orderId,
+        userId: 'user123',
+        items: [{ productId: 'PROD-001', quantity: 2, price: 49.99 }],
+        total: 99.98,
+        status: 'created',
+        timestamp: new Date().toISOString(),
+      },
       orderId,
-      userId: 'user123',
-      items: [{ productId: 'PROD-001', quantity: 2, price: 49.99 }],
-      total: 99.98,
-      status: 'created',
-      timestamp: new Date().toISOString(),
-    }, orderId);
+    );
 
     // 2. Process payment
-    await txProducer.sendTransactional('payments-topic', {
-      paymentId: `PAY-${Date.now()}`,
+    await txProducer.sendTransactional(
+      'payments-topic',
+      {
+        paymentId: `PAY-${Date.now()}`,
+        orderId,
+        amount: 99.98,
+        method: 'credit_card',
+        status: 'processed',
+        timestamp: new Date().toISOString(),
+      },
       orderId,
-      amount: 99.98,
-      method: 'credit_card',
-      status: 'processed',
-      timestamp: new Date().toISOString(),
-    }, orderId);
+    );
 
     // 3. Update inventory
-    await txProducer.sendTransactional('inventory-topic', {
-      productId: 'PROD-001',
-      operation: 'decrement',
-      quantity: 2,
-      orderId,
-      timestamp: new Date().toISOString(),
-    }, 'PROD-001');
+    await txProducer.sendTransactional(
+      'inventory-topic',
+      {
+        productId: 'PROD-001',
+        operation: 'decrement',
+        quantity: 2,
+        orderId,
+        timestamp: new Date().toISOString(),
+      },
+      'PROD-001',
+    );
 
     // 4. Send notification (different key to distribute load)
-    await txProducer.sendTransactional('notifications-topic', {
-      userId: 'user123',
-      type: 'order_confirmation',
-      orderId,
-      message: `Your order ${orderId} has been confirmed!`,
-      timestamp: new Date().toISOString(),
-    }, 'user123');
+    await txProducer.sendTransactional(
+      'notifications-topic',
+      {
+        userId: 'user123',
+        type: 'order_confirmation',
+        orderId,
+        message: `Your order ${orderId} has been confirmed!`,
+        timestamp: new Date().toISOString(),
+      },
+      'user123',
+    );
 
     await txProducer.commit();
     console.log('✅ Cross-topic transaction committed successfully');
 
     // Verify messages across topics
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     console.log('\n📊 Verifying messages across topics:');
 
@@ -270,7 +310,6 @@ async function crossTopicTransactionExample() {
     // Simulate failure and abort
     await txProducer.abort();
     console.log('🚫 Transaction rolled back - no messages should be visible');
-
   } catch (error) {
     console.error('❌ Error:', error);
     try {
@@ -310,7 +349,7 @@ async function transactionWithTimeoutExample() {
     console.log('⏳ Waiting longer than transaction timeout...');
 
     // Wait longer than transaction timeout
-    await new Promise(resolve => setTimeout(resolve, 12000));
+    await new Promise((resolve) => setTimeout(resolve, 12000));
 
     // Try to commit (this should fail)
     try {
@@ -319,7 +358,6 @@ async function transactionWithTimeoutExample() {
     } catch (error) {
       console.log('🚫 Transaction timed out as expected:', error.message);
     }
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {

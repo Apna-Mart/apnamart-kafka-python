@@ -17,13 +17,13 @@ describe('Config', () => {
       expect(config.retries).toBe(3);
       expect(config.groupId).toBe('default-group');
       expect(config.clientId).toBe('apnamart-kafka-client');
-      expect(config.batchSize).toBe(16384);
-      expect(config.lingerMs).toBe(0);
+      expect(config.batchSize).toBe(32768); // Updated for performance
+      expect(config.lingerMs).toBe(5); // Updated for performance
       expect(config.autoOffsetReset).toBe('latest');
       expect(config.enableAutoCommit).toBe(true);
-      expect(config.connectionTimeout).toBe(1000);
-      expect(config.authenticationTimeout).toBe(1000);
-      expect(config.requestTimeout).toBe(30000);
+      expect(config.connectionTimeout).toBe(10000); // Updated for KRaft stability
+      expect(config.authenticationTimeout).toBe(10000); // Updated for KRaft stability
+      expect(config.requestTimeout).toBe(30000); // Updated for single-node KRaft
     });
 
     it('should use environment variables', () => {
@@ -163,12 +163,18 @@ describe('Config', () => {
 
       expect(producerConfig).toEqual({
         allowAutoTopicCreation: true,
-        transactionTimeout: 30000,
-        maxInFlightRequests: 5,
+        transactionTimeout: 60000, // Updated for single-node KRaft
+        maxInFlightRequests: 100, // Updated for single-node stability
         idempotent: true,
+        compression: 'gzip',
+        batch: {
+          size: 32768,
+          lingerMs: 10, // Updated for KRaft batching (5 + 5)
+        },
         retry: {
-          initialRetryTime: 300,
-          retries: 5,
+          initialRetryTime: 1000, // Updated for KRaft metadata sync
+          retries: 8, // Updated for single-node KRaft (5 + 3)
+          maxRetryTime: 30000, // Updated for stability
         },
       });
     });
@@ -184,14 +190,19 @@ describe('Config', () => {
 
       expect(consumerConfig).toEqual({
         groupId: 'test-group',
-        sessionTimeout: 30000,
-        rebalanceTimeout: 60000,
-        heartbeatInterval: 3000,
-        metadataMaxAge: 300000,
+        sessionTimeout: 45000, // Updated for single-node KRaft stability
+        rebalanceTimeout: 90000, // Updated for KRaft coordination delay
+        heartbeatInterval: 10000, // Updated for single-node setup
+        metadataMaxAge: 180000, // Updated for faster refresh
         allowAutoTopicCreation: true,
+        fetchMinBytes: 1,
+        fetchMaxWait: 500, // Updated for single-node KRaft
+        fetchMaxBytes: 1048576,
+        maxPartitionFetchBytes: 1048576,
         retry: {
-          initialRetryTime: 300,
-          retries: 3,
+          initialRetryTime: 1000, // Updated for KRaft
+          retries: 8, // Updated for single-node KRaft (3 + 5)
+          maxRetryTime: 60000, // Updated for stability
         },
       });
     });

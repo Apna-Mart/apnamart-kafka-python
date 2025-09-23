@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Config, Consumer, Producer } from '../../src/index.ts';
+import '../setup.ts'; // Import global test utilities
 
 describe('Basic Integration Tests', () => {
   let producer: Producer;
@@ -33,32 +34,41 @@ describe('Basic Integration Tests', () => {
   it('should send and receive a simple message', async () => {
     const testMessage = { id: 1, message: 'Hello Kafka!' };
 
-    // Send message
+    // Send message (this will create the topic)
     await producer.send(testTopic, testMessage);
 
-    // Receive message with timeout
-    const receivedMessage = await consumer.poll(5000);
+    // Wait longer for KRaft mode topic creation and message propagation
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Receive message with extended timeout
+    const receivedMessage = await consumer.poll(15000);
 
     expect(receivedMessage).not.toBeNull();
     expect(receivedMessage?.topic).toBe(testTopic);
     expect(receivedMessage?.value).toEqual(testMessage);
-  }, 30000);
+  }, 60000);
 
   it('should handle message with key', async () => {
+    // Wait for topic to be ready before producing
+    await waitForTopicReady(testTopic);
+
     const testMessage = { id: 2, message: 'Hello with key!' };
     const testKey = 'user-123';
 
     // Send message with key
     await producer.send(testTopic, testMessage, testKey);
 
+    // Extended wait for KRaft mode message propagation
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     // Receive message
-    const receivedMessage = await consumer.poll(5000);
+    const receivedMessage = await consumer.poll(10000);
 
     expect(receivedMessage).not.toBeNull();
     expect(receivedMessage?.topic).toBe(testTopic);
     expect(receivedMessage?.value).toEqual(testMessage);
     expect(receivedMessage?.key).toBe(testKey);
-  }, 30000);
+  }, 60000);
 
   it('should handle string messages', async () => {
     const testMessage = 'Simple string message';
@@ -72,7 +82,7 @@ describe('Basic Integration Tests', () => {
     expect(receivedMessage).not.toBeNull();
     expect(receivedMessage?.topic).toBe(testTopic);
     expect(receivedMessage?.value).toBe(testMessage);
-  }, 30000);
+  }, 60000);
 
   it('should handle multiple messages', async () => {
     const messages = [
@@ -96,5 +106,5 @@ describe('Basic Integration Tests', () => {
 
     expect(receivedMessages).toHaveLength(3);
     expect(receivedMessages).toEqual(expect.arrayContaining(messages));
-  }, 30000);
+  }, 60000);
 });

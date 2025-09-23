@@ -87,8 +87,9 @@ describe('Convenience Functions', () => {
         expect.objectContaining({
           allowAutoTopicCreation: true,
           idempotent: true,
-          maxInFlightRequests: 5,
-          transactionTimeout: 30000,
+          maxInFlightRequests: 100, // Updated for single-node stability
+          transactionTimeout: 60000, // Updated for single-node KRaft
+          compression: 'gzip',
         }),
       );
     });
@@ -176,7 +177,7 @@ describe('Convenience Functions', () => {
 
   describe('consume function', () => {
     it('should create async iterator for single topic', async () => {
-      let messageCount = 0;
+      const messageCount = 0;
 
       mockRun.mockImplementation(({ eachMessage }) => {
         setTimeout(() => {
@@ -228,7 +229,11 @@ describe('Convenience Functions', () => {
               message: {
                 offset: '123',
                 key: null,
-                value: Buffer.from(JSON.stringify({ topic: messageCount === 0 ? 'topic1' : 'topic2' })),
+                value: Buffer.from(
+                  JSON.stringify({
+                    topic: messageCount === 0 ? 'topic1' : 'topic2',
+                  }),
+                ),
                 timestamp: '1234567890',
                 headers: {},
               },

@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   Config,
   Consumer,
-  TransactionalProducer,
   type MessageInput,
+  TransactionalProducer,
 } from '../../src/index.ts';
 
 describe('Transactional Producer Integration Tests', () => {
@@ -47,7 +47,7 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer.commit();
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Message should be visible after commit
       const message = await consumer.poll(5000);
@@ -63,7 +63,7 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer.abort();
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Message should NOT be visible after abort
       const message = await consumer.poll(1000);
@@ -84,13 +84,13 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer.commit();
 
       // Wait a bit for messages to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // All messages should be visible after commit
       const receivedMessages = await consumer.pollBatch(3, 10000);
       expect(receivedMessages).toHaveLength(3);
 
-      const values = receivedMessages.map(m => m.value);
+      const values = receivedMessages.map((m) => m.value);
       expect(values).toEqual(expect.arrayContaining(messages));
     }, 30000);
   });
@@ -105,7 +105,7 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer.commit();
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const message = await consumer.poll(5000);
       expect(message).not.toBeNull();
@@ -129,7 +129,7 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer.commit();
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const message = await consumer.poll(5000);
       expect(message).not.toBeNull();
@@ -157,29 +157,36 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer.sendBatchTransactional(messages);
 
       // Wait a bit for messages to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // All messages should be committed
       const receivedMessages = await consumer.pollBatch(3, 10000);
       expect(receivedMessages).toHaveLength(3);
 
       // Check that all messages are present
-      const values = receivedMessages.map(m => m.value);
-      expect(values).toEqual(expect.arrayContaining([
-        { id: 1, content: 'Batch TX 1' },
-        { id: 2, content: 'Batch TX 2' },
-        { id: 3, content: 'Batch TX 3' },
-      ]));
+      const values = receivedMessages.map((m) => m.value);
+      expect(values).toEqual(
+        expect.arrayContaining([
+          { id: 1, content: 'Batch TX 1' },
+          { id: 2, content: 'Batch TX 2' },
+          { id: 3, content: 'Batch TX 3' },
+        ]),
+      );
 
       // Check keys
-      const messageWithKey2 = receivedMessages.find(m => m.key === 'key-2');
+      const messageWithKey2 = receivedMessages.find((m) => m.key === 'key-2');
       expect(messageWithKey2).toBeDefined();
       expect(messageWithKey2!.value).toEqual({ id: 2, content: 'Batch TX 2' });
 
       // Check headers
-      const messageWithHeaders = receivedMessages.find(m => m.headers.type === 'batch');
+      const messageWithHeaders = receivedMessages.find(
+        (m) => m.headers.type === 'batch',
+      );
       expect(messageWithHeaders).toBeDefined();
-      expect(messageWithHeaders!.value).toEqual({ id: 3, content: 'Batch TX 3' });
+      expect(messageWithHeaders!.value).toEqual({
+        id: 3,
+        content: 'Batch TX 3',
+      });
     }, 30000);
 
     it('should abort batch on error', async () => {
@@ -190,10 +197,12 @@ describe('Transactional Producer Integration Tests', () => {
       ];
 
       // This should fail and abort the transaction
-      await expect(txProducer.sendBatchTransactional(messages)).rejects.toThrow();
+      await expect(
+        txProducer.sendBatchTransactional(messages),
+      ).rejects.toThrow();
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // No messages should be visible (all aborted)
       const message = await consumer.poll(1000);
@@ -206,11 +215,14 @@ describe('Transactional Producer Integration Tests', () => {
       const topic2 = `${testTopic}-2`;
       const transactionalId2 = `${transactionalId}-2`;
 
-      const txProducer2 = new TransactionalProducer(transactionalId2, new Config({
-        bootstrapServers: 'localhost:9092',
-        acks: 'all',
-        retries: 3,
-      }));
+      const txProducer2 = new TransactionalProducer(
+        transactionalId2,
+        new Config({
+          bootstrapServers: 'localhost:9092',
+          acks: 'all',
+          retries: 3,
+        }),
+      );
 
       const consumer2 = new Consumer(
         [topic2],
@@ -227,19 +239,28 @@ describe('Transactional Producer Integration Tests', () => {
         await txProducer2.begin();
 
         // Send message in first transaction but don't commit
-        await txProducer.sendTransactional(testTopic, { id: 1, content: 'Uncommitted 1' });
+        await txProducer.sendTransactional(testTopic, {
+          id: 1,
+          content: 'Uncommitted 1',
+        });
 
         // Send message in second transaction and commit
-        await txProducer2.sendTransactional(topic2, { id: 2, content: 'Committed 2' });
+        await txProducer2.sendTransactional(topic2, {
+          id: 2,
+          content: 'Committed 2',
+        });
         await txProducer2.commit();
 
         // Wait a bit for committed message
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // Should see committed message from second transaction
         const committedMessage = await consumer2.poll(5000);
         expect(committedMessage).not.toBeNull();
-        expect(committedMessage!.value).toEqual({ id: 2, content: 'Committed 2' });
+        expect(committedMessage!.value).toEqual({
+          id: 2,
+          content: 'Committed 2',
+        });
 
         // Should NOT see uncommitted message from first transaction
         const uncommittedMessage = await consumer.poll(1000);
@@ -249,12 +270,15 @@ describe('Transactional Producer Integration Tests', () => {
         await txProducer.commit();
 
         // Wait a bit
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // Now should see the first message
         const nowCommittedMessage = await consumer.poll(5000);
         expect(nowCommittedMessage).not.toBeNull();
-        expect(nowCommittedMessage!.value).toEqual({ id: 1, content: 'Uncommitted 1' });
+        expect(nowCommittedMessage!.value).toEqual({
+          id: 1,
+          content: 'Uncommitted 1',
+        });
       } finally {
         await txProducer2.close();
         await consumer2.close();
@@ -275,7 +299,7 @@ describe('Transactional Producer Integration Tests', () => {
 
       // Try to send to an invalid/empty topic name
       await expect(
-        txProducer.sendTransactional('', { id: 1, content: 'Invalid topic' })
+        txProducer.sendTransactional('', { id: 1, content: 'Invalid topic' }),
       ).rejects.toThrow();
 
       // Transaction should still be abortable
@@ -286,23 +310,32 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer.begin();
 
       // Trying to begin again should fail
-      await expect(txProducer.begin()).rejects.toThrow('Transaction already in progress');
+      await expect(txProducer.begin()).rejects.toThrow(
+        'Transaction already in progress',
+      );
 
       // Clean up
       await txProducer.abort();
     }, 30000);
 
     it('should handle commit without begin', async () => {
-      await expect(txProducer.commit()).rejects.toThrow('No transaction in progress');
+      await expect(txProducer.commit()).rejects.toThrow(
+        'No transaction in progress',
+      );
     }, 30000);
 
     it('should handle abort without begin', async () => {
-      await expect(txProducer.abort()).rejects.toThrow('No transaction in progress');
+      await expect(txProducer.abort()).rejects.toThrow(
+        'No transaction in progress',
+      );
     }, 30000);
 
     it('should handle send without transaction', async () => {
       await expect(
-        txProducer.sendTransactional(testTopic, { id: 1, content: 'No transaction' })
+        txProducer.sendTransactional(testTopic, {
+          id: 1,
+          content: 'No transaction',
+        }),
       ).rejects.toThrow('No active transaction');
     }, 30000);
   });
@@ -318,7 +351,7 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer[Symbol.asyncDispose]();
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Message should be visible (committed)
       const message = await consumer.poll(5000);
@@ -328,7 +361,7 @@ describe('Transactional Producer Integration Tests', () => {
       // Create new producer for cleanup
       txProducer = new TransactionalProducer(
         `${transactionalId}-new`,
-        new Config({ bootstrapServers: 'localhost:9092' })
+        new Config({ bootstrapServers: 'localhost:9092' }),
       );
     }, 30000);
 
@@ -343,7 +376,7 @@ describe('Transactional Producer Integration Tests', () => {
       await txProducer.close();
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Message should NOT be visible (aborted due to connection close)
       const message = await consumer.poll(1000);
@@ -352,7 +385,7 @@ describe('Transactional Producer Integration Tests', () => {
       // Create new producer for cleanup
       txProducer = new TransactionalProducer(
         `${transactionalId}-new`,
-        new Config({ bootstrapServers: 'localhost:9092' })
+        new Config({ bootstrapServers: 'localhost:9092' }),
       );
     }, 30000);
   });
@@ -362,17 +395,23 @@ describe('Transactional Producer Integration Tests', () => {
       const topic1 = `${testTopic}-cross-1`;
       const topic2 = `${testTopic}-cross-2`;
 
-      const consumer1 = new Consumer([topic1], new Config({
-        bootstrapServers: 'localhost:9092',
-        groupId: `cross-group-1-${Math.random().toString(36).substring(7)}`,
-        autoOffsetReset: 'earliest',
-      }));
+      const consumer1 = new Consumer(
+        [topic1],
+        new Config({
+          bootstrapServers: 'localhost:9092',
+          groupId: `cross-group-1-${Math.random().toString(36).substring(7)}`,
+          autoOffsetReset: 'earliest',
+        }),
+      );
 
-      const consumer2 = new Consumer([topic2], new Config({
-        bootstrapServers: 'localhost:9092',
-        groupId: `cross-group-2-${Math.random().toString(36).substring(7)}`,
-        autoOffsetReset: 'earliest',
-      }));
+      const consumer2 = new Consumer(
+        [topic2],
+        new Config({
+          bootstrapServers: 'localhost:9092',
+          groupId: `cross-group-2-${Math.random().toString(36).substring(7)}`,
+          autoOffsetReset: 'earliest',
+        }),
+      );
 
       try {
         await txProducer.begin();
@@ -384,7 +423,7 @@ describe('Transactional Producer Integration Tests', () => {
         await txProducer.commit();
 
         // Wait a bit for messages to be available
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // Both messages should be visible
         const message1 = await consumer1.poll(5000);

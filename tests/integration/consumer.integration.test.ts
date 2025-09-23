@@ -45,26 +45,24 @@ describe('Consumer Integration Tests', () => {
       }
 
       // Wait a bit for messages to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Consume batch
       const receivedMessages = await consumer.pollBatch(3, 10000);
 
       expect(receivedMessages).toHaveLength(3);
-      const receivedValues = receivedMessages.map(m => m.value);
+      const receivedValues = receivedMessages.map((m) => m.value);
       expect(receivedValues).toEqual(expect.arrayContaining(messages));
     }, 30000);
 
     it('should handle partial batch when fewer messages available', async () => {
-      const messages = [
-        { id: 1, content: 'Only message' },
-      ];
+      const messages = [{ id: 1, content: 'Only message' }];
 
       // Send only one message
       await producer.send(testTopic, messages[0]);
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Try to consume batch of 3 but only 1 available
       const receivedMessages = await consumer.pollBatch(3, 2000);
@@ -90,7 +88,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, testMessage);
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Consume message
       const message = await consumer.poll(5000);
@@ -110,7 +108,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, testMessage);
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Consume message
       const message = await consumer.poll(5000);
@@ -138,7 +136,7 @@ describe('Consumer Integration Tests', () => {
       }
 
       // Wait a bit for messages to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Consume first message to get partition info
       const firstMessage = await consumer.poll(5000);
@@ -167,7 +165,7 @@ describe('Consumer Integration Tests', () => {
       }
 
       // Wait a bit for messages to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const receivedMessages = [];
       let count = 0;
@@ -191,7 +189,7 @@ describe('Consumer Integration Tests', () => {
       const headers = {
         'content-type': 'application/json',
         'user-id': '12345',
-        'timestamp': Date.now().toString(),
+        timestamp: Date.now().toString(),
       };
 
       // Send message with headers
@@ -200,7 +198,7 @@ describe('Consumer Integration Tests', () => {
       });
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Consume message
       const message = await consumer.poll(5000);
@@ -219,7 +217,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, stringMessage);
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const message = await consumer.poll(5000);
       expect(message).not.toBeNull();
@@ -232,7 +230,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, numberMessage);
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const message = await consumer.poll(5000);
       expect(message).not.toBeNull();
@@ -245,7 +243,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, booleanMessage);
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const message = await consumer.poll(5000);
       expect(message).not.toBeNull();
@@ -258,7 +256,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, arrayMessage);
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const message = await consumer.poll(5000);
       expect(message).not.toBeNull();
@@ -286,7 +284,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, complexMessage);
 
       // Wait a bit for message to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const message = await consumer.poll(5000);
       expect(message).not.toBeNull();
@@ -310,18 +308,24 @@ describe('Consumer Integration Tests', () => {
 
       try {
         // Send messages to both topics
-        await producer.send(topic1, { topic: 'topic1', message: 'Hello from topic 1' });
-        await producer.send(topic2, { topic: 'topic2', message: 'Hello from topic 2' });
+        await producer.send(topic1, {
+          topic: 'topic1',
+          message: 'Hello from topic 1',
+        });
+        await producer.send(topic2, {
+          topic: 'topic2',
+          message: 'Hello from topic 2',
+        });
 
         // Wait a bit for messages to be available
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // Consume from both topics
         const messages = await multiConsumer.pollBatch(2, 10000);
 
         expect(messages).toHaveLength(2);
 
-        const topics = messages.map(m => m.topic);
+        const topics = messages.map((m) => m.topic);
         expect(topics).toEqual(expect.arrayContaining([topic1, topic2]));
       } finally {
         await multiConsumer.close();
@@ -335,7 +339,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, { id: 1, content: 'Early message' });
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Create consumer with earliest offset reset
       const earlyConsumer = new Consumer(
@@ -362,7 +366,7 @@ describe('Consumer Integration Tests', () => {
       await producer.send(testTopic, { id: 1, content: 'Old message' });
 
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Create consumer with latest offset reset
       const latestConsumer = new Consumer(
@@ -376,7 +380,7 @@ describe('Consumer Integration Tests', () => {
 
       try {
         // Send a new message after consumer creation
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         await producer.send(testTopic, { id: 2, content: 'New message' });
 
         // Should receive only the new message

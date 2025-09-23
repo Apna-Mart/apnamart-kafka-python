@@ -52,7 +52,9 @@ async function basicConsumerExample() {
       }
     }
 
-    console.log(`\n🎯 Consumed ${messageCount} messages. Demonstrating batch consumption...\n`);
+    console.log(
+      `\n🎯 Consumed ${messageCount} messages. Demonstrating batch consumption...\n`,
+    );
 
     // Demonstrate batch consumption
     console.log('📥 Polling for batch of messages...');
@@ -70,7 +72,6 @@ async function basicConsumerExample() {
     } else {
       console.log('📭 No messages in batch');
     }
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
@@ -114,7 +115,6 @@ async function consumerAsyncIteratorExample() {
     }
 
     console.log(`✅ Processed ${count} messages via async iterator`);
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {

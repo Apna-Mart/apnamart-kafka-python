@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   Config,
   Consumer,
+  type MessageInput,
   Producer,
   TransactionalProducer,
-  type MessageInput,
 } from '../../src/index.ts';
 
 describe('Performance Benchmark Tests', () => {
@@ -46,17 +46,21 @@ describe('Performance Benchmark Tests', () => {
   describe('producer throughput benchmarks', () => {
     it('should achieve >30,000 messages/second producer throughput', async () => {
       const messageCount = 30000;
-      const testMessage = { id: 1, content: 'Performance test message', timestamp: Date.now() };
+      const testMessage = {
+        id: 1,
+        content: 'Performance test message',
+        timestamp: Date.now(),
+      };
 
-      console.log(`\n📊 Producer Throughput Test: Sending ${messageCount} messages...`);
+      console.log(
+        `\n📊 Producer Throughput Test: Sending ${messageCount} messages...`,
+      );
 
       const startTime = Date.now();
       const promises = [];
 
       for (let i = 0; i < messageCount; i++) {
-        promises.push(
-          producer.send(testTopic, { ...testMessage, id: i })
-        );
+        promises.push(producer.send(testTopic, { ...testMessage, id: i }));
       }
 
       await Promise.all(promises);
@@ -67,7 +71,9 @@ describe('Performance Benchmark Tests', () => {
       const throughput = messageCount / durationSeconds;
 
       console.log(`✅ Sent ${messageCount} messages in ${durationMs}ms`);
-      console.log(`🚀 Producer throughput: ${throughput.toFixed(2)} messages/second`);
+      console.log(
+        `🚀 Producer throughput: ${throughput.toFixed(2)} messages/second`,
+      );
 
       expect(throughput).toBeGreaterThan(30000);
       expect(durationMs).toBeLessThan(10000); // Should complete within 10 seconds
@@ -78,7 +84,9 @@ describe('Performance Benchmark Tests', () => {
       const batchCount = 50;
       const totalMessages = batchSize * batchCount;
 
-      console.log(`\n📊 Batch Producer Test: Sending ${batchCount} batches of ${batchSize} messages...`);
+      console.log(
+        `\n📊 Batch Producer Test: Sending ${batchCount} batches of ${batchSize} messages...`,
+      );
 
       const startTime = Date.now();
       const batchPromises = [];
@@ -102,8 +110,12 @@ describe('Performance Benchmark Tests', () => {
       const durationSeconds = durationMs / 1000;
       const throughput = totalMessages / durationSeconds;
 
-      console.log(`✅ Sent ${totalMessages} messages in ${batchCount} batches in ${durationMs}ms`);
-      console.log(`🚀 Batch throughput: ${throughput.toFixed(2)} messages/second`);
+      console.log(
+        `✅ Sent ${totalMessages} messages in ${batchCount} batches in ${durationMs}ms`,
+      );
+      console.log(
+        `🚀 Batch throughput: ${throughput.toFixed(2)} messages/second`,
+      );
 
       expect(throughput).toBeGreaterThan(40000); // Batch should be faster than individual sends
     }, 60000);
@@ -112,22 +124,26 @@ describe('Performance Benchmark Tests', () => {
   describe('consumer throughput benchmarks', () => {
     it('should achieve >25,000 messages/second consumer throughput', async () => {
       const messageCount = 25000;
-      const testMessage = { id: 1, content: 'Consumer performance test', timestamp: Date.now() };
+      const testMessage = {
+        id: 1,
+        content: 'Consumer performance test',
+        timestamp: Date.now(),
+      };
 
-      console.log(`\n📊 Consumer Throughput Test: Consuming ${messageCount} messages...`);
+      console.log(
+        `\n📊 Consumer Throughput Test: Consuming ${messageCount} messages...`,
+      );
 
       // First, send all messages
       console.log('📤 Sending messages...');
       const sendPromises = [];
       for (let i = 0; i < messageCount; i++) {
-        sendPromises.push(
-          producer.send(testTopic, { ...testMessage, id: i })
-        );
+        sendPromises.push(producer.send(testTopic, { ...testMessage, id: i }));
       }
       await Promise.all(sendPromises);
 
       // Wait for messages to be available
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Now consume them
       console.log('📥 Consuming messages...');
@@ -135,7 +151,10 @@ describe('Performance Benchmark Tests', () => {
       const consumedMessages = [];
 
       while (consumedMessages.length < messageCount) {
-        const batchSize = Math.min(1000, messageCount - consumedMessages.length);
+        const batchSize = Math.min(
+          1000,
+          messageCount - consumedMessages.length,
+        );
         const messages = await consumer.pollBatch(batchSize, 10000);
 
         if (messages.length === 0) {
@@ -150,10 +169,16 @@ describe('Performance Benchmark Tests', () => {
       const durationSeconds = durationMs / 1000;
       const throughput = consumedMessages.length / durationSeconds;
 
-      console.log(`✅ Consumed ${consumedMessages.length} messages in ${durationMs}ms`);
-      console.log(`🚀 Consumer throughput: ${throughput.toFixed(2)} messages/second`);
+      console.log(
+        `✅ Consumed ${consumedMessages.length} messages in ${durationMs}ms`,
+      );
+      console.log(
+        `🚀 Consumer throughput: ${throughput.toFixed(2)} messages/second`,
+      );
 
-      expect(consumedMessages.length).toBeGreaterThanOrEqual(messageCount * 0.95); // Allow 5% message loss
+      expect(consumedMessages.length).toBeGreaterThanOrEqual(
+        messageCount * 0.95,
+      ); // Allow 5% message loss
       expect(throughput).toBeGreaterThan(25000);
     }, 90000);
   });
@@ -163,7 +188,9 @@ describe('Performance Benchmark Tests', () => {
       const messageCount = 1000;
       const latencies: number[] = [];
 
-      console.log(`\n📊 Latency Test: Measuring ${messageCount} round-trip latencies...`);
+      console.log(
+        `\n📊 Latency Test: Measuring ${messageCount} round-trip latencies...`,
+      );
 
       for (let i = 0; i < messageCount; i++) {
         const startTime = Date.now();
@@ -171,17 +198,17 @@ describe('Performance Benchmark Tests', () => {
         await producer.send(testTopic, {
           id: i,
           content: 'Latency test',
-          sendTime: startTime
+          sendTime: startTime,
         });
 
         // Small delay to avoid overwhelming
         if (i % 100 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, 10));
         }
       }
 
       // Wait for messages to be available
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Consume and measure latencies
       const consumedMessages = await consumer.pollBatch(messageCount, 30000);
@@ -193,7 +220,8 @@ describe('Performance Benchmark Tests', () => {
         latencies.push(latency);
       }
 
-      const avgLatency = latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length;
+      const avgLatency =
+        latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length;
       const sortedLatencies = latencies.sort((a, b) => a - b);
       const p95Latency = sortedLatencies[Math.floor(latencies.length * 0.95)];
       const p99Latency = sortedLatencies[Math.floor(latencies.length * 0.99)];
@@ -213,27 +241,31 @@ describe('Performance Benchmark Tests', () => {
       const concurrency = 10;
       const latencies: number[] = [];
 
-      console.log(`\n📊 Load Latency Test: ${messageCount} messages with ${concurrency} concurrent operations...`);
+      console.log(
+        `\n📊 Load Latency Test: ${messageCount} messages with ${concurrency} concurrent operations...`,
+      );
 
       const promises = [];
       for (let c = 0; c < concurrency; c++) {
-        promises.push((async () => {
-          for (let i = 0; i < messageCount / concurrency; i++) {
-            const startTime = Date.now();
-            await producer.send(testTopic, {
-              id: c * 1000 + i,
-              content: 'Load test',
-              sendTime: startTime,
-              concurrent: c
-            });
-          }
-        })());
+        promises.push(
+          (async () => {
+            for (let i = 0; i < messageCount / concurrency; i++) {
+              const startTime = Date.now();
+              await producer.send(testTopic, {
+                id: c * 1000 + i,
+                content: 'Load test',
+                sendTime: startTime,
+                concurrent: c,
+              });
+            }
+          })(),
+        );
       }
 
       await Promise.all(promises);
 
       // Wait for messages to be available
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Consume messages and measure latencies
       const consumedMessages = await consumer.pollBatch(messageCount, 30000);
@@ -245,11 +277,14 @@ describe('Performance Benchmark Tests', () => {
         latencies.push(latency);
       }
 
-      const avgLatency = latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length;
+      const avgLatency =
+        latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length;
       const sortedLatencies = latencies.sort((a, b) => a - b);
       const p95Latency = sortedLatencies[Math.floor(latencies.length * 0.95)];
 
-      console.log(`✅ Load test completed: ${latencies.length} messages processed`);
+      console.log(
+        `✅ Load test completed: ${latencies.length} messages processed`,
+      );
       console.log(`⚡ Average latency under load: ${avgLatency.toFixed(2)}ms`);
       console.log(`📈 P95 latency under load: ${p95Latency}ms`);
 
@@ -270,11 +305,13 @@ describe('Performance Benchmark Tests', () => {
           bootstrapServers: 'localhost:9092',
           acks: 'all',
           retries: 3,
-        })
+        }),
       );
 
       try {
-        console.log(`\n📊 Transaction Performance: ${transactionCount} transactions with ${messagesPerTransaction} messages each...`);
+        console.log(
+          `\n📊 Transaction Performance: ${transactionCount} transactions with ${messagesPerTransaction} messages each...`,
+        );
 
         const startTime = Date.now();
 
@@ -285,7 +322,7 @@ describe('Performance Benchmark Tests', () => {
             await txProducer.sendTransactional(testTopic, {
               transactionId: t,
               messageId: m,
-              content: `TX ${t} Message ${m}`
+              content: `TX ${t} Message ${m}`,
             });
           }
 
@@ -297,8 +334,12 @@ describe('Performance Benchmark Tests', () => {
         const durationSeconds = durationMs / 1000;
         const throughput = totalMessages / durationSeconds;
 
-        console.log(`✅ Completed ${transactionCount} transactions (${totalMessages} messages) in ${durationMs}ms`);
-        console.log(`🚀 Transactional throughput: ${throughput.toFixed(2)} messages/second`);
+        console.log(
+          `✅ Completed ${transactionCount} transactions (${totalMessages} messages) in ${durationMs}ms`,
+        );
+        console.log(
+          `🚀 Transactional throughput: ${throughput.toFixed(2)} messages/second`,
+        );
 
         expect(throughput).toBeGreaterThan(5000); // Transactions are slower but should still be reasonable
       } finally {
@@ -317,11 +358,13 @@ describe('Performance Benchmark Tests', () => {
           bootstrapServers: 'localhost:9092',
           acks: 'all',
           retries: 3,
-        })
+        }),
       );
 
       try {
-        console.log(`\n📊 Batch Transaction Performance: ${batchCount} batch transactions with ${messagesPerBatch} messages each...`);
+        console.log(
+          `\n📊 Batch Transaction Performance: ${batchCount} batch transactions with ${messagesPerBatch} messages each...`,
+        );
 
         const startTime = Date.now();
 
@@ -330,8 +373,12 @@ describe('Performance Benchmark Tests', () => {
           for (let m = 0; m < messagesPerBatch; m++) {
             messages.push([
               testTopic,
-              { batchId: b, messageId: m, content: `Batch TX ${b} Message ${m}` },
-              `batch-tx-${b}-${m}`
+              {
+                batchId: b,
+                messageId: m,
+                content: `Batch TX ${b} Message ${m}`,
+              },
+              `batch-tx-${b}-${m}`,
             ]);
           }
 
@@ -343,8 +390,12 @@ describe('Performance Benchmark Tests', () => {
         const durationSeconds = durationMs / 1000;
         const throughput = totalMessages / durationSeconds;
 
-        console.log(`✅ Completed ${batchCount} batch transactions (${totalMessages} messages) in ${durationMs}ms`);
-        console.log(`🚀 Batch transactional throughput: ${throughput.toFixed(2)} messages/second`);
+        console.log(
+          `✅ Completed ${batchCount} batch transactions (${totalMessages} messages) in ${durationMs}ms`,
+        );
+        console.log(
+          `🚀 Batch transactional throughput: ${throughput.toFixed(2)} messages/second`,
+        );
 
         expect(throughput).toBeGreaterThan(10000); // Batch transactions should be more efficient
       } finally {
@@ -358,7 +409,9 @@ describe('Performance Benchmark Tests', () => {
       const iterationCount = 10;
       const messagesPerIteration = 1000;
 
-      console.log(`\n📊 Memory Usage Test: ${iterationCount} iterations of ${messagesPerIteration} messages...`);
+      console.log(
+        `\n📊 Memory Usage Test: ${iterationCount} iterations of ${messagesPerIteration} messages...`,
+      );
 
       const startMemory = process.memoryUsage();
 
@@ -373,14 +426,14 @@ describe('Performance Benchmark Tests', () => {
               iteration,
               messageId: i,
               data: 'x'.repeat(1000), // 1KB message
-              timestamp: Date.now()
-            })
+              timestamp: Date.now(),
+            }),
           );
         }
         await Promise.all(sendPromises);
 
         // Consume messages
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         const messages = await consumer.pollBatch(messagesPerIteration, 10000);
 
         expect(messages.length).toBeGreaterThan(0);
@@ -396,8 +449,12 @@ describe('Performance Benchmark Tests', () => {
       const memoryIncreaseMB = memoryIncrease / 1024 / 1024;
 
       console.log(`📊 Memory usage increase: ${memoryIncreaseMB.toFixed(2)}MB`);
-      console.log(`📊 Start heap: ${(startMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`);
-      console.log(`📊 End heap: ${(endMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+      console.log(
+        `📊 Start heap: ${(startMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`,
+      );
+      console.log(
+        `📊 End heap: ${(endMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`,
+      );
 
       // Memory increase should be reasonable (less than 100MB for this test)
       expect(memoryIncreaseMB).toBeLessThan(100);
@@ -406,21 +463,28 @@ describe('Performance Benchmark Tests', () => {
     it('should handle rapid connection cycles efficiently', async () => {
       const cycles = 20;
 
-      console.log(`\n📊 Connection Cycle Test: ${cycles} rapid create/close cycles...`);
+      console.log(
+        `\n📊 Connection Cycle Test: ${cycles} rapid create/close cycles...`,
+      );
 
       const startTime = Date.now();
 
       for (let i = 0; i < cycles; i++) {
-        const tempProducer = new Producer(new Config({
-          bootstrapServers: 'localhost:9092',
-          acks: 'all',
-        }));
+        const tempProducer = new Producer(
+          new Config({
+            bootstrapServers: 'localhost:9092',
+            acks: 'all',
+          }),
+        );
 
-        const tempConsumer = new Consumer([testTopic], new Config({
-          bootstrapServers: 'localhost:9092',
-          groupId: `temp-group-${i}-${Date.now()}`,
-          autoOffsetReset: 'latest',
-        }));
+        const tempConsumer = new Consumer(
+          [testTopic],
+          new Config({
+            bootstrapServers: 'localhost:9092',
+            groupId: `temp-group-${i}-${Date.now()}`,
+            autoOffsetReset: 'latest',
+          }),
+        );
 
         // Send one message to establish connection
         await tempProducer.send(testTopic, { cycle: i, test: 'connection' });
@@ -437,7 +501,9 @@ describe('Performance Benchmark Tests', () => {
       const durationMs = endTime - startTime;
       const avgCycleTime = durationMs / cycles;
 
-      console.log(`✅ Completed ${cycles} connection cycles in ${durationMs}ms`);
+      console.log(
+        `✅ Completed ${cycles} connection cycles in ${durationMs}ms`,
+      );
       console.log(`⚡ Average cycle time: ${avgCycleTime.toFixed(2)}ms`);
 
       expect(avgCycleTime).toBeLessThan(1000); // Each cycle should be fast
@@ -451,15 +517,21 @@ describe('Performance Benchmark Tests', () => {
       const messagesPerProducer = 500;
       const totalMessages = concurrentProducers * messagesPerProducer;
 
-      console.log(`\n📊 Concurrency Test: ${concurrentProducers} concurrent producers, ${messagesPerProducer} messages each...`);
+      console.log(
+        `\n📊 Concurrency Test: ${concurrentProducers} concurrent producers, ${messagesPerProducer} messages each...`,
+      );
 
       const producers: Producer[] = [];
       for (let i = 0; i < concurrentProducers; i++) {
-        producers.push(new Producer(new Config({
-          bootstrapServers: 'localhost:9092',
-          acks: 'all',
-          clientId: `concurrent-producer-${i}`,
-        })));
+        producers.push(
+          new Producer(
+            new Config({
+              bootstrapServers: 'localhost:9092',
+              acks: 'all',
+              clientId: `concurrent-producer-${i}`,
+            }),
+          ),
+        );
       }
 
       try {
@@ -473,10 +545,10 @@ describe('Performance Benchmark Tests', () => {
                 producerId: index,
                 messageId: i,
                 content: `Producer ${index} Message ${i}`,
-                timestamp: Date.now()
+                timestamp: Date.now(),
               });
             }
-          })()
+          })(),
         );
 
         await Promise.all(producerPromises);
@@ -486,12 +558,16 @@ describe('Performance Benchmark Tests', () => {
         const durationSeconds = durationMs / 1000;
         const throughput = totalMessages / durationSeconds;
 
-        console.log(`✅ Concurrent producers sent ${totalMessages} messages in ${durationMs}ms`);
-        console.log(`🚀 Concurrent throughput: ${throughput.toFixed(2)} messages/second`);
+        console.log(
+          `✅ Concurrent producers sent ${totalMessages} messages in ${durationMs}ms`,
+        );
+        console.log(
+          `🚀 Concurrent throughput: ${throughput.toFixed(2)} messages/second`,
+        );
 
         expect(throughput).toBeGreaterThan(20000); // Should maintain good throughput under concurrency
       } finally {
-        await Promise.all(producers.map(p => p.close()));
+        await Promise.all(producers.map((p) => p.close()));
       }
     }, 120000);
   });

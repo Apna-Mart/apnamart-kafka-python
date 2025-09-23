@@ -1,155 +1,176 @@
-# ApnaMart Kafka TypeScript Library
+# ApnaMart Kafka Node
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-blue.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.0+-black.svg)](https://bun.sh/)
-[![KafkaJS](https://img.shields.io/badge/KafkaJS-2.2+-green.svg)](https://kafka.js.org/)
+[![KafkaJS](https://img.shields.io/badge/KafkaJS-2.2+-orange.svg)](https://kafka.js.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A high-performance, type-safe Kafka client library for Node.js and Bun, built on top of KafkaJS with comprehensive TypeScript support. Designed for production use cases with features like transactions, batch operations, error handling, and extensive testing coverage.
+A high-performance, type-safe Kafka client library for Node.js and Bun. Built on KafkaJS with production-ready features including ACID transactions, batch operations, comprehensive error handling, and KRaft support.
 
-## 🚀 Features
+## ✨ Key Features
 
-- **🔒 Type Safety**: Full TypeScript support with strict typing and no `any` types
-- **⚡ High Performance**: Optimized for throughput (>30k msg/s) and low latency (<5ms)
-- **🔄 Transactional Support**: ACID transactions across multiple topics
-- **📦 Batch Operations**: Efficient batch sending and consuming
-- **🛡️ Error Handling**: Comprehensive error recovery and retry mechanisms
-- **🔧 Flexible Configuration**: Environment-based and programmatic configuration
-- **🧪 Well Tested**: 100+ unit tests and extensive integration test coverage
-- **📚 Rich Examples**: Complete examples for common patterns and advanced use cases
-- **🌐 Cross-Runtime**: Works with Node.js, Bun, and other JavaScript runtimes
+- 🔒 **Type Safety** - Full TypeScript support with strict typing, no `any` types
+- ⚡ **High Performance** - Optimized for throughput (>30k msg/s) and low latency (<5ms)
+- 🔄 **ACID Transactions** - Transactional producer with cross-topic atomicity
+- 📦 **Batch Operations** - Efficient batch sending and consuming
+- 🛡️ **Error Recovery** - Comprehensive retry mechanisms and error handling
+- 🔧 **Flexible Config** - Environment variables + programmatic configuration
+- 🏗️ **KRaft Support** - Compatible with both Zookeeper and KRaft modes
+- 🧪 **Production Ready** - 164 unit tests, integration tests, performance benchmarks
+- 📚 **Complete Examples** - Real-world patterns and advanced use cases
+- 🌐 **Cross-Runtime** - Works with Node.js, Bun, and modern JavaScript runtimes
 
-## 📋 Table of Contents
+## 🚀 Quick Start
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
-- [API Reference](#api-reference)
-- [Configuration](#configuration)
-- [Advanced Usage](#advanced-usage)
-- [Examples](#examples)
-- [Testing](#testing)
-- [Performance](#performance)
-- [Contributing](#contributing)
+Get up and running in under 2 minutes:
 
-## 🛠️ Installation
+### Installation
 
 ```bash
-# Using Bun (recommended)
-bun add apnamart-kafka-node
-
-# Using npm
-npm install apnamart-kafka-node
-
-# Using yarn
-yarn add apnamart-kafka-node
-
-# Using pnpm
-pnpm add apnamart-kafka-node
+bun add apnamart-kafka-node    # or npm install apnamart-kafka-node
 ```
 
-### Prerequisites
-
-- Node.js 18+ or Bun 1.0+
-- Apache Kafka 2.8+ (for the broker)
-- TypeScript 5.0+ (for development)
-
-## 🏃‍♂️ Quick Start
-
-### Basic Producer
+### Basic Usage
 
 ```typescript
-import { Config, Producer } from 'apnamart-kafka-node';
+import { Producer, Consumer, Config } from 'apnamart-kafka-node';
 
-const config = new Config({
-  bootstrapServers: 'localhost:9092',
-  acks: 'all',
-  retries: 3,
-});
+// 1. Send a message
+const producer = new Producer();
+await producer.send('my-topic', { hello: 'world' });
 
-const producer = new Producer(config);
-
-// Send a simple message
-const result = await producer.send('my-topic', {
-  message: 'Hello, Kafka!',
-  timestamp: new Date().toISOString(),
-});
-
-console.log('Message sent:', result);
-
-// Clean up
-await producer.close();
-```
-
-### Basic Consumer
-
-```typescript
-import { Config, Consumer } from 'apnamart-kafka-node';
-
-const config = new Config({
-  bootstrapServers: 'localhost:9092',
-  groupId: 'my-consumer-group',
-  autoOffsetReset: 'earliest',
-});
-
-const consumer = new Consumer(['my-topic'], config);
-
-// Poll for messages
+// 2. Receive messages
+const consumer = new Consumer(['my-topic']);
 const message = await consumer.poll(5000);
-if (message) {
-  console.log('Received:', message.value);
-  await consumer.commit(message);
-}
+console.log('Received:', message?.value);
 
-// Or use async iteration
-for await (const message of consumer) {
-  console.log('Received:', message.value);
-  // Auto-commit happens automatically
-}
-
+// 3. Clean up
+await producer.close();
 await consumer.close();
 ```
 
-### Batch Operations
+### Advanced Features
 
 ```typescript
-import { Producer, type MessageInput } from 'apnamart-kafka-node';
+// ACID Transactions
+const txProducer = new TransactionalProducer('tx-id');
+await txProducer.begin();
+await txProducer.sendTransactional('orders', order);
+await txProducer.sendTransactional('payments', payment);
+await txProducer.commit(); // Atomic across topics
 
-const producer = new Producer(config);
+// Batch Operations (High Performance)
+await producer.sendBatch([
+  ['topic1', message1],
+  ['topic2', message2, 'key'],
+  { topic: 'topic3', value: message3, headers: { type: 'event' } }
+]);
 
-// Send multiple messages efficiently
-const messages: MessageInput[] = [
-  ['topic1', { id: 1, data: 'Message 1' }],
-  ['topic2', { id: 2, data: 'Message 2' }, 'key-2'],
-  {
-    topic: 'topic3',
-    value: { id: 3, data: 'Message 3' },
-    key: 'key-3',
-    headers: { 'content-type': 'application/json' },
-  },
-];
-
-const results = await producer.sendBatch(messages);
-console.log(`Sent ${results.length} messages`);
+// Environment Configuration
+const config = new Config({
+  bootstrapServers: process.env.KAFKA_BROKERS || 'localhost:9092',
+  acks: 'all',
+  retries: 3
+});
 ```
 
-### Transactional Producer
+## 📋 Table of Contents
+
+- [Quick Start](#quick-start)
+- [KRaft Support](#kraft-support)
+- [Configuration](#configuration)
+- [API Reference](#api-reference)
+- [Examples](#examples)
+- [Testing](#testing)
+- [Performance](#performance)
+- [Advanced Usage](#advanced-usage)
+- [Development](#development)
+
+## 🏗️ KRaft Support
+
+This library is **fully compatible** with Apache Kafka's KRaft mode (Kafka without Zookeeper). We've optimized the client specifically for single-node and multi-node KRaft deployments.
+
+### KRaft Optimizations
+
+- **Extended Timeouts** - Longer connection and request timeouts for KRaft metadata sync
+- **Intelligent Retries** - Gentler backoff strategies optimized for KRaft timing
+- **Metadata Handling** - Enhanced topic creation and partition leadership detection
+- **Single-Node Support** - Special configurations for development setups
+
+### Docker KRaft Setup
+
+```bash
+# Start single-node KRaft (development)
+docker run -d --name kafka-kraft \
+  -p 9092:9092 \
+  -e KAFKA_PROCESS_ROLES=broker,controller \
+  -e KAFKA_NODE_ID=1 \
+  -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+  -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+  -e KAFKA_AUTO_CREATE_TOPICS_ENABLE=true \
+  apache/kafka:latest
+```
+
+### KRaft Configuration
 
 ```typescript
-import { TransactionalProducer } from 'apnamart-kafka-node';
+// Optimized for KRaft mode
+const kraftConfig = new Config({
+  bootstrapServers: 'localhost:9092',
+  requestTimeout: 30000,        // Extended for KRaft
+  connectionTimeout: 10000,     // Better stability
+  sessionTimeout: 45000,        // Longer for single-node
+  retries: 5,                   // More retries for metadata sync
+});
+```
 
-const txProducer = new TransactionalProducer('my-tx-id', config);
+## ⚙️ Configuration
 
-// Atomic operations across topics
-await txProducer.begin();
+### Environment Variables
 
-await txProducer.sendTransactional('orders', { orderId: '123', status: 'created' });
-await txProducer.sendTransactional('payments', { orderId: '123', amount: 99.99 });
-await txProducer.sendTransactional('inventory', { productId: 'ABC', quantity: -1 });
+Set up your Kafka connection using environment variables:
 
-await txProducer.commit(); // All messages are visible atomically
+```bash
+# Connection
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+KAFKA_CLIENT_ID=my-app
 
-await txProducer.close();
+# Security (optional)
+KAFKA_SSL_ENABLED=true
+KAFKA_SASL_USERNAME=user
+KAFKA_SASL_PASSWORD=pass
+```
+
+### Programmatic Configuration
+
+```typescript
+import { Config } from 'apnamart-kafka-node';
+
+// Development setup
+const devConfig = new Config({
+  bootstrapServers: 'localhost:9092',
+  acks: '1',          // Fast acknowledgment
+  retries: 1,         // Quick feedback
+  groupId: 'dev-group'
+});
+
+// Production setup
+const prodConfig = new Config({
+  bootstrapServers: process.env.KAFKA_BROKERS,
+  acks: 'all',        // Wait for all replicas
+  retries: 3,         // Retry failures
+  batchSize: 32768,   // 32KB batches
+  lingerMs: 5,        // 5ms batching delay
+  compressionType: 'gzip',
+  ssl: true,
+  sasl: {
+    mechanism: 'plain',
+    username: process.env.KAFKA_USERNAME!,
+    password: process.env.KAFKA_PASSWORD!,
+  }
+});
 ```
 
 ## 🧠 Core Concepts

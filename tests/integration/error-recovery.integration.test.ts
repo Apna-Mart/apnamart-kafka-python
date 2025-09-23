@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   Config,
   Consumer,
-  Producer,
-  TransactionalProducer,
-  ProducerError,
   ConsumerError,
+  Producer,
+  ProducerError,
+  TransactionalProducer,
   TransactionError,
 } from '../../src/index.ts';
 
@@ -45,8 +45,12 @@ describe('Error Recovery Integration Tests', () => {
     it('should handle empty topic name errors', async () => {
       const testMessage = { id: 1, content: 'Test message' };
 
-      await expect(producer.send('', testMessage)).rejects.toThrow(ProducerError);
-      await expect(producer.send('', testMessage)).rejects.toThrow('Topic name cannot be empty');
+      await expect(producer.send('', testMessage)).rejects.toThrow(
+        ProducerError,
+      );
+      await expect(producer.send('', testMessage)).rejects.toThrow(
+        'Topic name cannot be empty',
+      );
     }, 30000);
 
     it('should handle producer operations after close', async () => {
@@ -54,8 +58,12 @@ describe('Error Recovery Integration Tests', () => {
 
       await producer.close();
 
-      await expect(producer.send(testTopic, testMessage)).rejects.toThrow(ProducerError);
-      await expect(producer.send(testTopic, testMessage)).rejects.toThrow('Producer is closed');
+      await expect(producer.send(testTopic, testMessage)).rejects.toThrow(
+        ProducerError,
+      );
+      await expect(producer.send(testTopic, testMessage)).rejects.toThrow(
+        'Producer is closed',
+      );
     }, 30000);
 
     it('should handle invalid bootstrap servers gracefully', async () => {
@@ -70,7 +78,9 @@ describe('Error Recovery Integration Tests', () => {
       try {
         const testMessage = { id: 1, content: 'Test message' };
 
-        await expect(invalidProducer.send(testTopic, testMessage)).rejects.toThrow(ProducerError);
+        await expect(
+          invalidProducer.send(testTopic, testMessage),
+        ).rejects.toThrow(ProducerError);
       } finally {
         await invalidProducer.close();
       }
@@ -86,19 +96,25 @@ describe('Error Recovery Integration Tests', () => {
 
     it('should recover from temporary connection issues', async () => {
       // Send a successful message first
-      await producer.send(testTopic, { id: 1, content: 'Before connection issue' });
+      await producer.send(testTopic, {
+        id: 1,
+        content: 'Before connection issue',
+      });
 
       // Simulate recovery by sending another message
       // In real scenarios, this might involve network recovery
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Should be able to send after recovery
       await expect(
-        producer.send(testTopic, { id: 2, content: 'After connection recovery' })
+        producer.send(testTopic, {
+          id: 2,
+          content: 'After connection recovery',
+        }),
       ).resolves.not.toThrow();
 
       // Verify both messages can be consumed
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       const messages = await consumer.pollBatch(2, 10000);
       expect(messages.length).toBeGreaterThanOrEqual(1);
     }, 45000);
@@ -122,19 +138,28 @@ describe('Error Recovery Integration Tests', () => {
     it('should handle seek operations after close', async () => {
       await consumer.close();
 
-      await expect(consumer.seek(testTopic, 0, '0')).rejects.toThrow(ConsumerError);
-      await expect(consumer.seek(testTopic, 0, '0')).rejects.toThrow('Consumer is closed');
+      await expect(consumer.seek(testTopic, 0, '0')).rejects.toThrow(
+        ConsumerError,
+      );
+      await expect(consumer.seek(testTopic, 0, '0')).rejects.toThrow(
+        'Consumer is closed',
+      );
     }, 30000);
 
     it('should handle polling from non-subscribed topics', async () => {
-      const emptyConsumer = new Consumer([], new Config({
-        bootstrapServers: 'localhost:9092',
-        groupId: `empty-group-${Math.random().toString(36).substring(7)}`,
-      }));
+      const emptyConsumer = new Consumer(
+        [],
+        new Config({
+          bootstrapServers: 'localhost:9092',
+          groupId: `empty-group-${Math.random().toString(36).substring(7)}`,
+        }),
+      );
 
       try {
         await expect(emptyConsumer.poll(1000)).rejects.toThrow(ConsumerError);
-        await expect(emptyConsumer.poll(1000)).rejects.toThrow('not subscribed to any topics');
+        await expect(emptyConsumer.poll(1000)).rejects.toThrow(
+          'not subscribed to any topics',
+        );
       } finally {
         await emptyConsumer.close();
       }
@@ -164,9 +189,12 @@ describe('Error Recovery Integration Tests', () => {
 
   describe('transactional producer error scenarios', () => {
     it('should handle transaction operations after close', async () => {
-      const txProducer = new TransactionalProducer('tx-error-test', new Config({
-        bootstrapServers: 'localhost:9092',
-      }));
+      const txProducer = new TransactionalProducer(
+        'tx-error-test',
+        new Config({
+          bootstrapServers: 'localhost:9092',
+        }),
+      );
 
       await txProducer.close();
 
@@ -177,42 +205,55 @@ describe('Error Recovery Integration Tests', () => {
     }, 30000);
 
     it('should handle commit without begin', async () => {
-      const txProducer = new TransactionalProducer('tx-error-test', new Config({
-        bootstrapServers: 'localhost:9092',
-      }));
+      const txProducer = new TransactionalProducer(
+        'tx-error-test',
+        new Config({
+          bootstrapServers: 'localhost:9092',
+        }),
+      );
 
       try {
         await expect(txProducer.commit()).rejects.toThrow(TransactionError);
-        await expect(txProducer.commit()).rejects.toThrow('No transaction in progress');
+        await expect(txProducer.commit()).rejects.toThrow(
+          'No transaction in progress',
+        );
       } finally {
         await txProducer.close();
       }
     }, 30000);
 
     it('should handle abort without begin', async () => {
-      const txProducer = new TransactionalProducer('tx-error-test', new Config({
-        bootstrapServers: 'localhost:9092',
-      }));
+      const txProducer = new TransactionalProducer(
+        'tx-error-test',
+        new Config({
+          bootstrapServers: 'localhost:9092',
+        }),
+      );
 
       try {
         await expect(txProducer.abort()).rejects.toThrow(TransactionError);
-        await expect(txProducer.abort()).rejects.toThrow('No transaction in progress');
+        await expect(txProducer.abort()).rejects.toThrow(
+          'No transaction in progress',
+        );
       } finally {
         await txProducer.close();
       }
     }, 30000);
 
     it('should handle send without transaction', async () => {
-      const txProducer = new TransactionalProducer('tx-error-test', new Config({
-        bootstrapServers: 'localhost:9092',
-      }));
+      const txProducer = new TransactionalProducer(
+        'tx-error-test',
+        new Config({
+          bootstrapServers: 'localhost:9092',
+        }),
+      );
 
       try {
         await expect(
-          txProducer.sendTransactional(testTopic, { id: 1 })
+          txProducer.sendTransactional(testTopic, { id: 1 }),
         ).rejects.toThrow(TransactionError);
         await expect(
-          txProducer.sendTransactional(testTopic, { id: 1 })
+          txProducer.sendTransactional(testTopic, { id: 1 }),
         ).rejects.toThrow('No active transaction');
       } finally {
         await txProducer.close();
@@ -220,15 +261,20 @@ describe('Error Recovery Integration Tests', () => {
     }, 30000);
 
     it('should handle nested transaction attempts', async () => {
-      const txProducer = new TransactionalProducer('tx-error-test', new Config({
-        bootstrapServers: 'localhost:9092',
-      }));
+      const txProducer = new TransactionalProducer(
+        'tx-error-test',
+        new Config({
+          bootstrapServers: 'localhost:9092',
+        }),
+      );
 
       try {
         await txProducer.begin();
 
         await expect(txProducer.begin()).rejects.toThrow(TransactionError);
-        await expect(txProducer.begin()).rejects.toThrow('Transaction already in progress');
+        await expect(txProducer.begin()).rejects.toThrow(
+          'Transaction already in progress',
+        );
 
         await txProducer.abort();
       } finally {
@@ -237,9 +283,12 @@ describe('Error Recovery Integration Tests', () => {
     }, 30000);
 
     it('should handle transaction abort on batch error', async () => {
-      const txProducer = new TransactionalProducer('tx-error-test', new Config({
-        bootstrapServers: 'localhost:9092',
-      }));
+      const txProducer = new TransactionalProducer(
+        'tx-error-test',
+        new Config({
+          bootstrapServers: 'localhost:9092',
+        }),
+      );
 
       try {
         // Invalid message format in batch should abort transaction
@@ -249,7 +298,7 @@ describe('Error Recovery Integration Tests', () => {
         ];
 
         await expect(
-          txProducer.sendBatchTransactional(invalidMessages)
+          txProducer.sendBatchTransactional(invalidMessages),
         ).rejects.toThrow(TransactionError);
 
         // Transaction should be aborted, so begin should work
@@ -274,9 +323,11 @@ describe('Error Recovery Integration Tests', () => {
     }, 30000);
 
     it('should handle async disposal with errors', async () => {
-      const testProducer = new Producer(new Config({
-        bootstrapServers: 'localhost:9092',
-      }));
+      const testProducer = new Producer(
+        new Config({
+          bootstrapServers: 'localhost:9092',
+        }),
+      );
 
       // Send a message first to establish connection
       await testProducer.send(testTopic, { id: 1 });
@@ -289,18 +340,24 @@ describe('Error Recovery Integration Tests', () => {
     }, 30000);
 
     it('should handle transactional producer disposal during transaction', async () => {
-      const txProducer = new TransactionalProducer('tx-dispose-test', new Config({
-        bootstrapServers: 'localhost:9092',
-      }));
+      const txProducer = new TransactionalProducer(
+        'tx-dispose-test',
+        new Config({
+          bootstrapServers: 'localhost:9092',
+        }),
+      );
 
       await txProducer.begin();
-      await txProducer.sendTransactional(testTopic, { id: 1, content: 'Disposal test' });
+      await txProducer.sendTransactional(testTopic, {
+        id: 1,
+        content: 'Disposal test',
+      });
 
       // Disposal should attempt to commit transaction
       await expect(txProducer[Symbol.asyncDispose]()).resolves.not.toThrow();
 
       // Wait a bit and check if message was committed
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       const message = await consumer.poll(5000);
 
       // Message might or might not be there depending on disposal timing
@@ -367,7 +424,7 @@ describe('Error Recovery Integration Tests', () => {
         await retryProducer.send(testTopic, { id: 1, content: 'Retry test' });
 
         // Verify message was sent
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         const message = await consumer.poll(5000);
         expect(message).not.toBeNull();
         expect(message!.value).toEqual({ id: 1, content: 'Retry test' });
@@ -378,16 +435,19 @@ describe('Error Recovery Integration Tests', () => {
 
     it('should handle connection recovery scenarios', async () => {
       // Send initial message to establish connection
-      await producer.send(testTopic, { id: 1, content: 'Before recovery test' });
+      await producer.send(testTopic, {
+        id: 1,
+        content: 'Before recovery test',
+      });
 
       // Simulate some processing time
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Should be able to send another message (connection should be maintained/recovered)
       await producer.send(testTopic, { id: 2, content: 'After recovery test' });
 
       // Verify both messages
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       const messages = await consumer.pollBatch(2, 10000);
       expect(messages.length).toBeGreaterThanOrEqual(1);
     }, 45000);
@@ -398,16 +458,18 @@ describe('Error Recovery Integration Tests', () => {
       const iterations = 10;
 
       for (let i = 0; i < iterations; i++) {
-        const tempProducer = new Producer(new Config({
-          bootstrapServers: 'localhost:9092',
-        }));
+        const tempProducer = new Producer(
+          new Config({
+            bootstrapServers: 'localhost:9092',
+          }),
+        );
 
         await tempProducer.send(testTopic, { iteration: i });
         await tempProducer.close();
       }
 
       // Should not accumulate memory leaks or connection issues
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Verify at least some messages were sent
       const messages = await consumer.pollBatch(iterations, 10000);
@@ -424,8 +486,8 @@ describe('Error Recovery Integration Tests', () => {
           producer.send(testTopic, {
             concurrent: true,
             id: i,
-            content: `Concurrent message ${i}`
-          })
+            content: `Concurrent message ${i}`,
+          }),
         );
       }
 
@@ -434,7 +496,7 @@ describe('Error Recovery Integration Tests', () => {
       expect(results).toHaveLength(concurrentOps);
 
       // Verify messages were sent
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       const messages = await consumer.pollBatch(concurrentOps, 10000);
       expect(messages.length).toBeGreaterThan(0);
     }, 45000);

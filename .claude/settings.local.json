@@ -8,7 +8,13 @@
       "Bash(bunx tsc:*)",
       "Bash(bun test:*)",
       "Bash(bunx @biomejs/biome check:*)",
-      "Bash(bunx @biomejs/biome format:*)"
+      "Bash(bunx @biomejs/biome format:*)",
+      "Bash(bun test:integration:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker inspect:*)",
+      "Bash(timeout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

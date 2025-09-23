@@ -5,7 +5,7 @@
  * multiple messages using batch operations.
  */
 
-import { Config, Producer, Consumer, type MessageInput } from '../src/index.ts';
+import { Config, Consumer, type MessageInput, Producer } from '../src/index.ts';
 
 async function batchOperationsExample() {
   console.log('🚀 Starting Batch Operations Example...\n');
@@ -29,7 +29,7 @@ async function batchOperationsExample() {
       autoOffsetReset: 'earliest',
       fetchMinBytes: 1024, // Fetch at least 1KB
       fetchMaxWait: 500, // Wait max 500ms for fetch
-    })
+    }),
   );
 
   try {
@@ -38,8 +38,16 @@ async function batchOperationsExample() {
     // Prepare batch messages using array format
     const arrayMessages: MessageInput[] = [
       ['batch-demo-topic', { id: 1, type: 'order', amount: 99.99 }],
-      ['batch-demo-topic', { id: 2, type: 'payment', amount: 149.99 }, 'payment-key'],
-      ['batch-demo-topic', { id: 3, type: 'shipment', tracking: 'TRK123' }, 'ship-key'],
+      [
+        'batch-demo-topic',
+        { id: 2, type: 'payment', amount: 149.99 },
+        'payment-key',
+      ],
+      [
+        'batch-demo-topic',
+        { id: 3, type: 'shipment', tracking: 'TRK123' },
+        'ship-key',
+      ],
     ];
 
     // Prepare batch messages using object format
@@ -48,7 +56,7 @@ async function batchOperationsExample() {
         topic: 'batch-demo-topic',
         value: { id: 4, type: 'notification', message: 'Order confirmed' },
         key: 'notif-1',
-        headers: { 'content-type': 'application/json', 'priority': 'high' },
+        headers: { 'content-type': 'application/json', priority: 'high' },
       },
       {
         topic: 'batch-demo-topic',
@@ -74,8 +82,8 @@ async function batchOperationsExample() {
     console.log(`✅ Batch sent in ${endTime - startTime}ms`);
     console.log('📊 Results summary:');
 
-    const successful = results.filter(r => r.success).length;
-    const failed = results.filter(r => !r.success).length;
+    const successful = results.filter((r) => r.success).length;
+    const failed = results.filter((r) => !r.success).length;
 
     console.log(`  ✅ Successful: ${successful}`);
     console.log(`  ❌ Failed: ${failed}`);
@@ -90,19 +98,23 @@ async function batchOperationsExample() {
     }
 
     console.log('\n📥 Waiting for messages to be available...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     console.log('📦 Consuming messages in batch...');
-    const consumedMessages = await consumer.pollBatch(mixedMessages.length, 15000);
+    const consumedMessages = await consumer.pollBatch(
+      mixedMessages.length,
+      15000,
+    );
 
     console.log(`📨 Received ${consumedMessages.length} messages:`);
     consumedMessages.forEach((msg, index) => {
-      console.log(`  ${index + 1}. [${msg.partition}:${msg.offset}] Key: ${msg.key}, Type: ${(msg.value as { type: string }).type}`);
+      console.log(
+        `  ${index + 1}. [${msg.partition}:${msg.offset}] Key: ${msg.key}, Type: ${(msg.value as { type: string }).type}`,
+      );
     });
 
     // Demonstrate large batch performance
     await demonstrateLargeBatchPerformance(producer, consumer);
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
@@ -113,7 +125,10 @@ async function batchOperationsExample() {
   }
 }
 
-async function demonstrateLargeBatchPerformance(producer: Producer, consumer: Consumer) {
+async function demonstrateLargeBatchPerformance(
+  producer: Producer,
+  consumer: Consumer,
+) {
   console.log('\n' + '='.repeat(50));
   console.log('🚀 Large Batch Performance Demo\n');
 
@@ -148,12 +163,14 @@ async function demonstrateLargeBatchPerformance(producer: Producer, consumer: Co
   console.log(`⏱️  Duration: ${duration}ms`);
   console.log(`🚀 Throughput: ${throughput.toFixed(2)} messages/second`);
 
-  const successful = results.filter(r => r.success).length;
-  console.log(`✅ Success rate: ${successful}/${batchSize} (${((successful/batchSize)*100).toFixed(1)}%)`);
+  const successful = results.filter((r) => r.success).length;
+  console.log(
+    `✅ Success rate: ${successful}/${batchSize} (${((successful / batchSize) * 100).toFixed(1)}%)`,
+  );
 
   // Wait and consume
   console.log('\n📥 Waiting for messages to be available...');
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   console.log('📦 Consuming large batch...');
   const consumeStartTime = Date.now();
@@ -165,7 +182,9 @@ async function demonstrateLargeBatchPerformance(producer: Producer, consumer: Co
 
   console.log(`📨 Consumed ${consumedMessages.length} messages`);
   console.log(`⏱️  Consume duration: ${consumeDuration}ms`);
-  console.log(`📥 Consume throughput: ${consumeThroughput.toFixed(2)} messages/second`);
+  console.log(
+    `📥 Consume throughput: ${consumeThroughput.toFixed(2)} messages/second`,
+  );
 }
 
 // Demonstrate multi-topic batch operations
@@ -183,10 +202,16 @@ async function multiTopicBatchExample() {
     // Messages for different topics
     const multiTopicMessages: MessageInput[] = [
       ['orders-topic', { orderId: 'ORD-001', amount: 99.99 }],
-      ['payments-topic', { paymentId: 'PAY-001', orderId: 'ORD-001', amount: 99.99 }],
+      [
+        'payments-topic',
+        { paymentId: 'PAY-001', orderId: 'ORD-001', amount: 99.99 },
+      ],
       ['inventory-topic', { productId: 'PROD-001', quantity: -1 }],
       ['notifications-topic', { userId: 123, message: 'Order placed' }],
-      ['analytics-topic', { event: 'order_placed', userId: 123, amount: 99.99 }],
+      [
+        'analytics-topic',
+        { event: 'order_placed', userId: 123, amount: 99.99 },
+      ],
     ];
 
     console.log('📤 Sending messages to multiple topics...');
@@ -198,7 +223,6 @@ async function multiTopicBatchExample() {
       const topic = Array.isArray(message) ? message[0] : message.topic;
       console.log(`  ${topic}: ${result.success ? '✅' : '❌'}`);
     });
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {

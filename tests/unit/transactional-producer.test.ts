@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   Config,
+  type MessageInput,
   TransactionalProducer,
   TransactionError,
-  type MessageInput,
 } from '../../src/index.ts';
 
 // Mock transaction object
@@ -374,8 +374,9 @@ describe('TransactionalProducer', () => {
       expect(mockKafka.producer).toHaveBeenCalledWith(
         expect.objectContaining({
           transactionalId: 'tx-id-1',
-          maxInFlightRequests: 1,
+          maxInFlightRequests: 5, // Updated for performance
           idempotent: true,
+          compression: 'gzip', // Added for performance
         }),
       );
     });

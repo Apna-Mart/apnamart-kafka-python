@@ -38,7 +38,7 @@ async function basicProducerExample() {
     const result2 = await producer.send(
       'demo-topic',
       { userId: 123, action: 'login', ip: '192.168.1.1' },
-      'user-123'
+      'user-123',
     );
 
     console.log('✅ Message with key sent:', result2);
@@ -53,11 +53,11 @@ async function basicProducerExample() {
       {
         headers: {
           'content-type': 'application/json',
-          'source': 'payment-service',
-          'version': '1.0',
+          source: 'payment-service',
+          version: '1.0',
         },
         partition: 0,
-      }
+      },
     );
 
     console.log('✅ Message with headers sent:', result3);
@@ -81,7 +81,6 @@ async function basicProducerExample() {
     console.log('\n🔄 Flushing producer to ensure delivery...');
     await producer.flush();
     console.log('✅ All messages flushed');
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
