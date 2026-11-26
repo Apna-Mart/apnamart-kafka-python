@@ -5,18 +5,18 @@ description = "A scalable, enterprise-ready Kafka producer and consumer library 
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "kafka-python>=2.0.2",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
+    "kafka-python>=3.0.13",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.11.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.6",
+    "mypy>=1.19.1",
 ]
 
 [build-system]
